@@ -24,10 +24,10 @@ void on_center_button() {
  * to keep execution time for this mode under a few seconds.
  */
 void initialize() {
-  printf("Before Init\n");
+  printf("Running/Init");
   pros::lcd::initialize();
   pros::lcd::set_text(1, "Hello PROS User!");
-  printf("Init ran\n");
+  pros::lcd::print(2, "Hello %d", 3);
   pros::lcd::register_btn1_cb(on_center_button);
 }
 
@@ -76,8 +76,9 @@ void autonomous() {}
  * task, not resume it from where it left off.
  */
 void opcontrol() {
+  pros::Controller master(pros::E_CONTROLLER_MASTER);
   while (true) {
-    pros::lcd::print(0, "Hello World!");
-    pros::delay(20);
+    pros::lcd::set_text(3, "Brain Working");
+    pros::delay(20); // Run for 20 ms then update
   }
 }
