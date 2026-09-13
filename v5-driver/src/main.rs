@@ -4,12 +4,16 @@ use vexide_motorgroup::*;
 #[vexide::main]
 async fn main(peripherals: Peripherals) {
     let controller = peripherals.primary_controller;
+    let mut intake = Motor::new(peripherals.port_18, Gearset::Blue, Direction::Forward);
+    let mut cascade_left = Motor::new(peripherals.port_1, Gearset::Blue, Direction::Forward);
+    let mut cascade_right = Motor::new(peripherals.port_2, Gearset::Blue, Direction::Forward);
     let mut left_front = Motor::new(peripherals.port_6, Gearset::Blue, Direction::Forward);
     let mut left_back = Motor::new(peripherals.port_8, Gearset::Blue, Direction::Forward);
     let mut right_front = Motor::new(peripherals.port_7, Gearset::Blue, Direction::Forward);
     let mut right_back = Motor::new(peripherals.port_4, Gearset::Blue, Direction::Forward);
     let mut drivetrain_left = MotorGroup::new(vec![left_front, left_back]);
     let mut drivetrain_right = MotorGroup::new(vec![right_front, right_back]);
+    let mut cascade = MotorGroup::new(vec![cascade_left, cascade_right]);
     loop {
         let state = controller.state().unwrap_or_default();
         let y_pos = state.left_stick.y();
@@ -20,6 +24,14 @@ async fn main(peripherals: Peripherals) {
             drivetrain_left.set_voltage(x_pos * drivetrain_left.max_voltage());
         } else if x_pos < 1.0 {
             drivetrain_right.set_voltage(x_pos * drivetrain_right.max_voltage());
+        }
+        if state.button_up.is_pressed() {
+            cascade.set_velocity(600);
+        } else if state.button_down.is_pressed() {
+            cascade.set_velocity(-600);
+        }
+        if state.button_x.is_pressed() {
+            intake.set_velocity(600);
         }
         sleep(Controller::UPDATE_INTERVAL).await;
     }
