@@ -4,15 +4,60 @@ use vexide_motorgroup::*;
 const CONTROL_THRESHOLD: f64 = 0.01;
 const CURVE_WEIGHT: f64 = 0.7;
 
-async fn drive(controller: ControllerState, drive_left: MotorGroup, drive_right: MotorGroup) {
+fn drive(
+    controller: &ControllerState,
+    mut drive_left: &mut MotorGroup,
+    mut drive_right: &mut MotorGroup,
+) {
     let y_pos = controller.left_stick.y();
     let x_pos = controller.right_stick.x();
-    let input = if y_pos.abs() <= CONTROL_THRESHOLD {
+    let input_y = if y_pos.abs() <= CONTROL_THRESHOLD {
         0.0
     } else {
-        y_pos.signum() * ((y_pos.abs() - CONTROL_THRESHOLD) / 1.0 - CONTROL_THRESHOLD)
+        y_pos.signum() * ((y_pos.abs() - CONTROL_THRESHOLD) / (1.0 - CONTROL_THRESHOLD))
     };
-    let response = CURVE_WEIGHT * input.powi(3) + (1.0 - CURVE_WEIGHT) * input;
+    let input_x = if x_pos.abs() <= CONTROL_THRESHOLD {
+        0.0
+    } else {
+        x_pos.signum() * ((x_pos.abs() - CONTROL_THRESHOLD) / (1.0 - CONTROL_THRESHOLD))
+    };
+    let response_y = CURVE_WEIGHT * input_y.powi(3) + (1.0 - CURVE_WEIGHT) * input_y;
+    let response_x = CURVE_WEIGHT * input_x.powi(3) + (1.0 - CURVE_WEIGHT) * input_x;
+    let quickturn = controller.button_right.is_pressed() || response_y == 0.0;
+    let turn = if quickturn {
+        response_x
+    } else {
+        response_y.abs() * response_x
+    };
+    let mut left = response_y + turn;
+    let mut right = response_y - turn;
+    let magnitude = left.abs().max(right.abs());
+    if magnitude > 1.0 {
+        left /= magnitude;
+        right /= magnitude;
+    }
+    let _ = drive_left.set_voltage(left * drive_left.max_voltage());
+    let _ = drive_right.set_voltage(right * drive_right.max_voltage());
+}
+
+fn cascade_control(controller: &ControllerState, mut cascade: &mut MotorGroup) {
+    if controller.button_up.is_pressed() {
+        let _ = cascade.set_velocity(600);
+    } else if controller.button_down.is_pressed() {
+        let _ = cascade.set_velocity(-600);
+    } else {
+        let _ = cascade.set_velocity(0);
+    }
+}
+
+fn intake_control(controller: &ControllerState, mut intake: &mut Motor) {
+    if controller.button_r1.is_pressed() {
+        let _ = intake.set_velocity(-600);
+    } else if controller.button_r2.is_pressed() {
+        let _ = intake.set_velocity(600);
+    } else {
+        let _ = intake.set_velocity(0);
+    }
 }
 
 #[vexide::main]
@@ -28,31 +73,12 @@ async fn main(peripherals: Peripherals) {
     let mut drivetrain_left = MotorGroup::new(vec![left_front, left_back]);
     let mut drivetrain_right = MotorGroup::new(vec![right_front, right_back]);
     let mut cascade = MotorGroup::new(vec![cascade_left, cascade_right]);
+    let _ = cascade.brake(vexide::smart::motor::BrakeMode::Hold);
     loop {
-        let state = controller.state().unwrap_or_default();
-        let y_pos = state.left_stick.y();
-        let x_pos = state.right_stick.x();
-        let _ = drivetrain_left.set_voltage(y_pos * drivetrain_left.max_voltage());
-        let _ = drivetrain_right.set_voltage(y_pos * drivetrain_right.max_voltage());
-        if x_pos > 0.01 {
-            let _ = drivetrain_left.set_voltage(x_pos * drivetrain_left.max_voltage());
-        } else if x_pos < -0.01 {
-            let _ = drivetrain_right.set_voltage(x_pos * drivetrain_right.max_voltage());
-        }
-        if state.button_up.is_pressed() {
-            let _ = cascade.set_velocity(600);
-        } else if state.button_down.is_pressed() {
-            let _ = cascade.set_velocity(-600);
-        } else {
-            let _ = cascade.brake(vexide::smart::motor::BrakeMode::Hold);
-        }
-        if state.button_r1.is_pressed() {
-            let _ = intake.set_velocity(-600);
-        } else if state.button_r2.is_pressed() {
-            let _ = intake.set_velocity(600);
-        } else {
-            let _ = intake.set_velocity(0);
-        }
+        let state = &controller.state().unwrap_or_default();
+        drive(state, &mut drivetrain_left, &mut drivetrain_right);
+        cascade_control(state, &mut cascade);
+        intake_control(state, &mut intake);
         sleep(Controller::UPDATE_INTERVAL).await;
     }
 }
