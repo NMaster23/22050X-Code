@@ -1,3 +1,5 @@
+use std::{io::LineWriter, time::Instant};
+
 use vexide::{controller::ControllerState, prelude::*};
 use vexide_motorgroup::*;
 
@@ -60,9 +62,26 @@ fn intake_control(controller: &ControllerState, mut intake: &mut Motor) {
     }
 }
 
+async fn imu_calibrate(
+    controller: &mut Controller,
+    display: &mut Display,
+    imu: &mut InertialSensor,
+) {
+    controller.try_clear_screen();
+    controller.try_set_text("Calibrating IMU", 1, 1);
+    let calibrate_start = Instant::now();
+    if imu.calibrate().await.is_err() {
+        controller.try_set_text("Calibration Failed", 1, 1);
+        return;
+    }
+    let calibration_time = calibrate_start.elapsed();
+    controller.try_set_text(format!("{:?}", calibration_time), 1, 1);
+    controller.rumble(".-.-");
+}
+
 #[vexide::main]
 async fn main(peripherals: Peripherals) {
-    let controller = peripherals.primary_controller;
+    let mut controller = peripherals.primary_controller;
     let mut intake = Motor::new(peripherals.port_19, Gearset::Blue, Direction::Forward);
     let mut cascade_left = Motor::new(peripherals.port_1, Gearset::Blue, Direction::Forward);
     let mut cascade_right = Motor::new(peripherals.port_2, Gearset::Blue, Direction::Reverse);
@@ -70,14 +89,19 @@ async fn main(peripherals: Peripherals) {
     let mut left_back = Motor::new(peripherals.port_8, Gearset::Blue, Direction::Reverse);
     let mut right_front = Motor::new(peripherals.port_7, Gearset::Blue, Direction::Reverse);
     let mut right_back = Motor::new(peripherals.port_9, Gearset::Blue, Direction::Forward);
+    let mut imu = InertialSensor::new(peripherals.port_3);
+    let mut odom_y = RotationSensor::new(peripherals.port_4, Direction::Forward);
+    let mut odom_x = RotationSensor::new(peripherals.port_5, Direction::Forward);
     let mut drivetrain_left = MotorGroup::new(vec![left_front, left_back]);
     let mut drivetrain_right = MotorGroup::new(vec![right_front, right_back]);
     let mut cascade = MotorGroup::new(vec![cascade_left, cascade_right]);
+    let screen = peripherals.display;
     loop {
         let state = &controller.state().unwrap_or_default();
         drive(state, &mut drivetrain_left, &mut drivetrain_right);
         cascade_control(state, &mut cascade);
         intake_control(state, &mut intake);
+        controller_management(&mut controller);
         sleep(Controller::UPDATE_INTERVAL).await;
     }
 }
