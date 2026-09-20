@@ -1,0 +1,1 @@
+This MarkDown file contains all of the journaling for the user with Slack ID: U0A0QDBALF2 .
