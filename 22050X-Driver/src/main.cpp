@@ -1,11 +1,23 @@
 #include "main.h"
 
+const int MOTOR_LEFT_FRONT_PORT = 1;
+const int MOTOR_LEFT_BACK_PORT = 2;
+const int MOTOR_RIGHT_FRONT_PORT = 3;
+const int MOTOR_RIGHT_BACK_PORT = 4;
+
+const int IMU_PORT = 5;
+
+pros::MotorGroup left_drive({MOTOR_LEFT_FRONT_PORT, MOTOR_LEFT_BACK_PORT});
+pros::MotorGroup right_drive({MOTOR_RIGHT_FRONT_PORT, MOTOR_RIGHT_BACK_PORT});
+pros::Imu imu(IMU_PORT);
+
 /**
  * A callback function for LLEMU's center button.
  *
  * When this callback is fired, it will toggle line 2 of the LCD text between
  * "I was pressed!" and nothing.
  */
+
 void on_center_button() {
 	static bool pressed = false;
 	pressed = !pressed;
@@ -25,7 +37,6 @@ void on_center_button() {
 void initialize() {
 	pros::lcd::initialize();
 	pros::lcd::set_text(1, "Hello PROS User!");
-
 	pros::lcd::register_btn1_cb(on_center_button);
 }
 
@@ -45,7 +56,9 @@ void disabled() {}
  * This task will exit when the robot is enabled and autonomous or opcontrol
  * starts.
  */
-void competition_initialize() {}
+void competition_initialize() {
+
+}
 
 /**
  * Runs the user autonomous code. This function will be started in its own task
@@ -75,9 +88,6 @@ void autonomous() {}
  */
 void opcontrol() {
 	pros::Controller master(pros::E_CONTROLLER_MASTER);
-	pros::MotorGroup left_mg({1, -2, 3});    // Creates a motor group with forwards ports 1 & 3 and reversed port 2
-	pros::MotorGroup right_mg({-4, 5, -6});  // Creates a motor group with forwards port 5 and reversed ports 4 & 6
-
 
 	while (true) {
 		pros::lcd::print(0, "%d %d %d", (pros::lcd::read_buttons() & LCD_BTN_LEFT) >> 2,
@@ -87,8 +97,8 @@ void opcontrol() {
 		// Arcade control scheme
 		int dir = master.get_analog(ANALOG_LEFT_Y);    // Gets amount forward/backward from left joystick
 		int turn = master.get_analog(ANALOG_RIGHT_X);  // Gets the turn left/right from right joystick
-		left_mg.move(dir - turn);                      // Sets left motor voltage
-		right_mg.move(dir + turn);                     // Sets right motor voltage
+		left_drive.move(dir - turn);                      // Sets left motor voltage
+		right_drive.move(dir + turn);                     // Sets right motor voltage
 		pros::delay(20);                               // Run for 20 ms then update
 	}
 }
