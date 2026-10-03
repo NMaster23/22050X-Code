@@ -1,14 +1,28 @@
 #include "main.h"
 
-const int MOTOR_LEFT_FRONT_PORT = 1;
-const int MOTOR_LEFT_BACK_PORT = 2;
-const int MOTOR_RIGHT_FRONT_PORT = 3;
-const int MOTOR_RIGHT_BACK_PORT = 4;
+const int MOTOR_LEFT_FRONT_PORT = 20;
+const int MOTOR_LEFT_BACK_PORT = -8;
+const int MOTOR_RIGHT_FRONT_PORT = -7;
+const int MOTOR_RIGHT_BACK_PORT = 9;
+const int MOTOR_CASCADE_LEFT_PORT = 1;
+const int MOTOR_CASCADE_RIGHT_PORT = -2;
+const int MOTOR_INTAKE_PORT = 19;
 
-const int IMU_PORT = 5;
+const int IMU_PORT = 3;
+
+pros::Motor left_front(MOTOR_LEFT_FRONT_PORT);
+pros::Motor left_back(MOTOR_LEFT_BACK_PORT);
+pros::Motor right_front(MOTOR_RIGHT_FRONT_PORT);
+pros::Motor right_back(MOTOR_RIGHT_BACK_PORT);
+
+pros::Motor cascade_left(MOTOR_CASCADE_LEFT_PORT);
+pros::Motor cascade_right(MOTOR_CASCADE_RIGHT_PORT);
+
+pros::Motor intake(MOTOR_INTAKE_PORT);
 
 pros::MotorGroup left_drive({MOTOR_LEFT_FRONT_PORT, MOTOR_LEFT_BACK_PORT});
 pros::MotorGroup right_drive({MOTOR_RIGHT_FRONT_PORT, MOTOR_RIGHT_BACK_PORT});
+pros::MotorGroup cascade({MOTOR_CASCADE_LEFT_PORT, MOTOR_CASCADE_RIGHT_PORT});
 pros::Imu imu(IMU_PORT);
 
 /**
@@ -92,13 +106,30 @@ void opcontrol() {
 	while (true) {
 		pros::lcd::print(0, "%d %d %d", (pros::lcd::read_buttons() & LCD_BTN_LEFT) >> 2,
 		                 (pros::lcd::read_buttons() & LCD_BTN_CENTER) >> 1,
-		                 (pros::lcd::read_buttons() & LCD_BTN_RIGHT) >> 0);  // Prints status of the emulated screen LCDs
-
-		// Arcade control scheme
-		int dir = master.get_analog(ANALOG_LEFT_Y);    // Gets amount forward/backward from left joystick
-		int turn = master.get_analog(ANALOG_RIGHT_X);  // Gets the turn left/right from right joystick
-		left_drive.move(dir - turn);                      // Sets left motor voltage
-		right_drive.move(dir + turn);                     // Sets right motor voltage
-		pros::delay(20);                               // Run for 20 ms then update
+		                 (pros::lcd::read_buttons() & LCD_BTN_RIGHT) >> 0);
+		int dir = master.get_analog(ANALOG_LEFT_Y);
+		int turn = master.get_analog(ANALOG_RIGHT_X);
+		int button_up = master.get_digital(DIGITAL_UP);
+		int button_down = master.get_digital(DIGITAL_DOWN);
+		if (button_up) {
+			cascade.move_velocity(600);
+		} else if (button_down) {
+			cascade.move_velocity(-600);
+		} else {
+			cascade.move_velocity(0);
+		}
+		int button_r1 = master.get_digital(DIGITAL_R1);
+		int button_r2 = master.get_digital(DIGITAL_R2);
+		if (button_r1) {
+			intake.move_voltage(-12000);
+		} else if (button_r2) {
+			intake.move_voltage(12000);
+		} else {
+			intake.move_voltage(0);
+		}
+		pros::lcd::print(1, "dir: %d turn: %d", dir, turn);
+		left_drive.move(dir + turn);
+		right_drive.move(dir - turn);
+		pros::delay(20); 
 	}
 }
