@@ -51,9 +51,12 @@ void on_center_button() {
  * to keep execution time for this mode under a few seconds.
  */
 void initialize() {
-	pros::lcd::initialize();
-	pros::lcd::set_text(1, "Hello PROS User!");
-	pros::lcd::register_btn1_cb(on_center_button);
+	left_drive.move(0);
+	right_drive.move(0);
+	cascade.set_brake_mode(MOTOR_BRAKE_HOLD);
+	cascade.brake();
+	intake.move_voltage(0);
+	pros::delay(200);
 }
 
 /**
