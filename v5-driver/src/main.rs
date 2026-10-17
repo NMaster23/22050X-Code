@@ -43,12 +43,12 @@ fn drive(
 }
 
 fn cascade_control(controller: &ControllerState, mut cascade: &mut MotorGroup) {
-    if controller.button_up.is_pressed() {
+    if controller.button_l1.is_pressed() {
         let _ = cascade.set_velocity(600);
-    } else if controller.button_down.is_pressed() {
+    } else if controller.button_l2.is_pressed() {
         let _ = cascade.set_velocity(-600);
     } else {
-        let _ = cascade.brake(vexide::smart::motor::BrakeMode::Hold);
+        let _ = cascade.set_velocity(0);
     }
 }
 
@@ -101,7 +101,6 @@ async fn main(peripherals: Peripherals) {
         drive(state, &mut drivetrain_left, &mut drivetrain_right);
         cascade_control(state, &mut cascade);
         intake_control(state, &mut intake);
-        controller_management(&mut controller);
         sleep(Controller::UPDATE_INTERVAL).await;
     }
 }

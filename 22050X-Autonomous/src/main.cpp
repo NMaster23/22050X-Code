@@ -35,13 +35,7 @@ pros::Imu imu(IMU_PORT);
  */
 
 void on_center_button() {
-	static bool pressed = false;
-	pressed = !pressed;
-	if (pressed) {
-		pros::lcd::set_text(2, "I was pressed!");
-	} else {
-		pros::lcd::clear_line(2);
-	}
+	
 }
 
 /**
@@ -109,9 +103,6 @@ void opcontrol() {
 	pros::Controller master(pros::E_CONTROLLER_MASTER);
 	cascade.set_brake_mode(MOTOR_BRAKE_HOLD);
 	while (true) {
-		pros::lcd::print(0, "%d %d %d", (pros::lcd::read_buttons() & LCD_BTN_LEFT) >> 2,
-		                 (pros::lcd::read_buttons() & LCD_BTN_CENTER) >> 1,
-		                 (pros::lcd::read_buttons() & LCD_BTN_RIGHT) >> 0);
 		int dir = master.get_analog(ANALOG_LEFT_Y);
 		int turn = master.get_analog(ANALOG_RIGHT_X);
 		int button_l1 = master.get_digital(DIGITAL_L1);
