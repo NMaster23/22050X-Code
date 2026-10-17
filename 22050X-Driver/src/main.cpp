@@ -8,6 +8,7 @@ const int MOTOR_CASCADE_LEFT_PORT = 1;
 const int MOTOR_CASCADE_RIGHT_PORT = -2;
 const int MOTOR_INTAKE_PORT = 19;
 
+// const int END_EFFECTOR_PORT = 5;
 const int IMU_PORT = 3;
 
 pros::Motor left_front(MOTOR_LEFT_FRONT_PORT);
@@ -19,6 +20,7 @@ pros::Motor cascade_left(MOTOR_CASCADE_LEFT_PORT);
 pros::Motor cascade_right(MOTOR_CASCADE_RIGHT_PORT);
 
 pros::Motor intake(MOTOR_INTAKE_PORT);
+// pros::Motor end_effector(END_EFFECTOR_PORT)
 
 pros::MotorGroup left_drive({MOTOR_LEFT_FRONT_PORT, MOTOR_LEFT_BACK_PORT});
 pros::MotorGroup right_drive({MOTOR_RIGHT_FRONT_PORT, MOTOR_RIGHT_BACK_PORT});
@@ -102,18 +104,18 @@ void autonomous() {}
  */
 void opcontrol() {
 	pros::Controller master(pros::E_CONTROLLER_MASTER);
-
+	cascade.set_brake_mode(MOTOR_BRAKE_HOLD);
 	while (true) {
 		pros::lcd::print(0, "%d %d %d", (pros::lcd::read_buttons() & LCD_BTN_LEFT) >> 2,
 		                 (pros::lcd::read_buttons() & LCD_BTN_CENTER) >> 1,
 		                 (pros::lcd::read_buttons() & LCD_BTN_RIGHT) >> 0);
 		int dir = master.get_analog(ANALOG_LEFT_Y);
 		int turn = master.get_analog(ANALOG_RIGHT_X);
-		int button_up = master.get_digital(DIGITAL_UP);
-		int button_down = master.get_digital(DIGITAL_DOWN);
-		if (button_up) {
+		int button_l1 = master.get_digital(DIGITAL_L1);
+		int button_l2 = master.get_digital(DIGITAL_L2);
+		if (button_l1) {
 			cascade.move_velocity(600);
-		} else if (button_down) {
+		} else if (button_l2) {
 			cascade.move_velocity(-600);
 		} else {
 			cascade.move_velocity(0);
@@ -122,10 +124,13 @@ void opcontrol() {
 		int button_r2 = master.get_digital(DIGITAL_R2);
 		if (button_r1) {
 			intake.move_voltage(-12000);
+//			end_effector.move_voltage(-12000);
 		} else if (button_r2) {
 			intake.move_voltage(12000);
+//			end_effector.move_voltage(12000);
 		} else {
 			intake.move_voltage(0);
+//			end_effector.move_voltage(0);
 		}
 		pros::lcd::print(1, "dir: %d turn: %d", dir, turn);
 		left_drive.move(dir + turn);
