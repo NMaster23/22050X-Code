@@ -1,6 +1,24 @@
 #include "main.h"
-#pragma once
 #include <map>
+#include "robot_fsm.hpp"
+#include "field_map.hpp"
+
+struct RobotPos {
+	double x;
+	double y;
+};
+
+struct Target {
+	int id;
+	float x;
+	float y;
+	float width;
+	float height;
+	int confidence;
+};
+
+RobotPos position = {0.0, 0.0};
+pros::Mutex pos_mutex;
 
 const int MOTOR_LEFT_FRONT_PORT = 20;
 const int MOTOR_LEFT_BACK_PORT = -8;
@@ -16,6 +34,9 @@ const int IMU_PORT = 3;
 
 const int ODOM_X_PORT = 0;
 const int ODOM_Y_PORT = 0;
+
+const int GPS_PORT = 0;
+const int AI_VISION_PORT = 0;
 
 pros::Motor left_front(MOTOR_LEFT_FRONT_PORT);
 pros::Motor left_back(MOTOR_LEFT_BACK_PORT);
@@ -36,6 +57,9 @@ pros::Imu imu(IMU_PORT);
 
 pros::Rotation odom_x(ODOM_X_PORT);
 pros::Rotation odom_y(ODOM_Y_PORT);
+
+pros::Gps gps(GPS_PORT);
+pros::AIVision ai_vision(AI_VISION_PORT);
 
 /**
  * A callback function for LLEMU's center button.
@@ -97,7 +121,17 @@ void competition_initialize() {
  * will be stopped. Re-enabling the robot will restart the task, not re-start it
  * from where it left off.
  */
-void autonomous() {}
+void autonomous() {
+	pros::Controller master(pros::E_CONTROLLER_MASTER);
+	ai_vision.enable_detection_types(pros::AivisionModeType::tags, pros::AivisionModeType::objects);
+	cascade.set_brake_mode(MOTOR_BRAKE_HOLD);
+	end_effector_rot.set_brake_mode(MOTOR_BRAKE_HOLD);
+	RobotState current_state = RobotState::Init;
+	while (true) {
+		HandleStates(current_state, init, loading, picking, navigation, score, toggle);
+		pros::delay(20);
+	}
+}
 
 /**
  * Runs the operator control code. This function will be started in its own task
@@ -113,10 +147,7 @@ void autonomous() {}
  * task, not resume it from where it left off.
  */
 void opcontrol() {
-	pros::Controller master(pros::E_CONTROLLER_MASTER);
-	cascade.set_brake_mode(MOTOR_BRAKE_HOLD);
-	end_effector_rot.set_brake_mode(MOTOR_BRAKE_HOLD);
-	while (true) {
+	/*while (true) {
 		int dir = master.get_analog(ANALOG_LEFT_Y);
 		int turn = master.get_analog(ANALOG_RIGHT_X);
 		int button_l1 = master.get_digital(DIGITAL_L1);
@@ -158,10 +189,52 @@ void opcontrol() {
 		left_drive.move(dir + turn);
 		right_drive.move(dir - turn);
 		pros::delay(10); 
+	}*/
+}
+
+void ai_vision_sensor(void *param) {
+	ai_vision.reset();
+	std::vector<pros::vision_object> items = ai_vision.get_all_objects();
+	while (true) {
+		auto obj = ai_vision.get_all_objects();
+
+		pros::delay(10);
 	}
 }
 
-void init() {
+void odometry_tracking(void* param) {
+
+}
+
+void gps_tracking(void* param) {
+	
+}
+
+void init(RobotState) {
 	odom_x.reset_position();
 	odom_y.reset_position();
+	imu.reset();
+	while (imu.is_calibrating()) {
+		pros::delay(10);
+	}
+}
+
+void loading(RobotState) {
+
+}
+
+void picking(RobotState) {
+
+}
+
+void navigation(RobotState) {
+
+}
+
+void score(RobotState) {
+
+}
+
+void toggle(RobotState) {
+
 }

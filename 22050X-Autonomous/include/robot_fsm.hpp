@@ -3,7 +3,8 @@
 
 enum RobotState {
 	Init,
-	Loading,
+	Loading_Stationary,
+    Loading_Nav,
 	Picking,
 	Navigating,
 	Scoring,
@@ -23,16 +24,26 @@ inline void HandleStates(
     switch (robot_state)
     {
         case Init:
+            init_fn(robot_state);
             break;
-        case Loading:
+        case Loading_Stationary:
+        	intake.move_voltage(-12000);
+	        end_effector.move_voltage(-12000);
+            break;
+        case Loading_Nav:
+            loading_fn(robot_state);
             break;
         case Picking:
+            picking_fn(robot_state);
             break;
         case Navigating:
+            nav_fn(robot_state);
             break;
         case Scoring:
+            score_fn(robot_state);
             break;
         case Toggling:
+            toggle_fn(robot_state);
             break;
     }
 }
