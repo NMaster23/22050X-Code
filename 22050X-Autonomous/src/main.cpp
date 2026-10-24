@@ -8,17 +8,6 @@ struct RobotPos {
 	double y;
 };
 
-struct Target {
-	int id;
-	float center_x;
-	float center_y;
-	float edge_x;
-	float edge_y;
-	float width;
-	float height;
-	int confidence;
-};
-
 RobotPos position = {0.0, 0.0};
 pros::Mutex pos_mutex;
 
@@ -62,6 +51,88 @@ pros::Rotation odom_y(ODOM_Y_PORT);
 
 pros::Gps gps(GPS_PORT);
 pros::AIVision ai_vision(AI_VISION_PORT);
+
+void ai_vision_sensor(void *param) {
+	ai_vision.reset();
+	std::vector<pros::v5::AIVision::Object> items = ai_vision.get_all_objects();
+	while (true) {
+		std::vector<pros::v5::AIVision::Object, std::allocator<pros::v5::AIVision::Object>> objects = ai_vision.get_all_objects();
+		for (const auto& obj: objects) {
+			if (pros::v5::AIVision::is_type(obj, pros::AivisionDetectType::object)) {
+				Target detected_obj = Target {
+					.id = obj.id,
+					.center_x = obj.object.element.xoffset + (obj.object.element.width / 2.0f),
+					.center_y = obj.object.element.yoffset + (obj.object.element.height / 2.0f),
+					.edge_x = obj.object.element.xoffset,
+					.edge_y = obj.object.element.yoffset,
+					.width = obj.object.element.width,
+					.height = obj.object.element.height,
+					.confidence = obj.object.element.score,
+				};
+				addPoint(detected_obj.center_x, detected_obj.center_y, std::to_string(obj.type));
+				addObj(detected_obj);
+			} else if (pros::v5::AIVision::is_type(obj, pros::AivisionDetectType::tag)) {
+				Target detected_obj = Target {
+					.id = obj.id,
+					.center_x = (obj.object.tag.x0 + obj.object.tag.x1 + obj.object.tag.x2 + obj.object.tag.x3) / 4.0f,
+					.center_y = (obj.object.tag.y0 + obj.object.tag.y1 + obj.object.tag.y2 + obj.object.tag.y3) / 4.0f,
+					.edge_x = std::min({obj.object.tag.x0, obj.object.tag.x1, obj.object.tag.x2, obj.object.tag.x3}),
+					.edge_y = std::min({obj.object.tag.y0, obj.object.tag.y1, obj.object.tag.y2, obj.object.tag.y3}),
+					.width = std::max({obj.object.tag.x0, obj.object.tag.x1, obj.object.tag.x2, obj.object.tag.x3}) - std::min({obj.object.tag.x0, obj.object.tag.x1, obj.object.tag.x2, obj.object.tag.x3}),
+					.height = std::max({obj.object.tag.y0, obj.object.tag.y1, obj.object.tag.y2, obj.object.tag.y3}) - std::min({obj.object.tag.y0, obj.object.tag.y1, obj.object.tag.y2, obj.object.tag.y3}),
+					.confidence = 1,
+				};
+				addPoint(detected_obj.center_x, detected_obj.center_y, std::to_string(obj.type));
+				addObj(detected_obj);
+			} else {
+				continue;
+			}
+		}
+		pros::delay(10);
+	}
+}
+
+void odometry_tracking(void* param) {
+
+}
+
+void gps_tracking(void* param) {
+	
+}
+
+void init(RobotState& robot_state) {
+	odom_x.reset_position();
+	odom_y.reset_position();
+	imu.reset();
+	while (imu.is_calibrating()) {
+		pros::delay(10);
+	}
+}
+
+void loading(RobotState& robot_state) {
+
+}
+
+void loading_stat(RobotState& robot_state) {
+	intake.move_voltage(-12000);
+	end_effector.move_voltage(-12000);
+}
+
+void picking(RobotState& robot_state) {
+
+}
+
+void navigation(RobotState& robot_state) {
+
+}
+
+void score(RobotState& robot_state) {
+
+}
+
+void toggle(RobotState& robot_state) {
+
+}
 
 /**
  * A callback function for LLEMU's center button.
@@ -131,7 +202,7 @@ void autonomous() {
 	RobotState current_state = RobotState::Init;
 	pros::Task vision_task(ai_vision_sensor);
 	while (true) {
-		HandleStates(current_state, init, loading, picking, navigation, score, toggle);
+		HandleStates(current_state, init, loading, loading_stat, picking, navigation, score, toggle);
 		pros::delay(20);
 	}
 }
@@ -193,79 +264,4 @@ void opcontrol() {
 		right_drive.move(dir - turn);
 		pros::delay(10); 
 	}*/
-}
-
-void ai_vision_sensor(void *param) {
-	ai_vision.reset();
-	std::vector<pros::v5::AIVision::Object> items = ai_vision.get_all_objects();
-	while (true) {
-		std::vector<pros::v5::AIVision::Object, std::allocator<pros::v5::AIVision::Object>> objects = ai_vision.get_all_objects();
-		for (const auto& obj: objects) {
-			if (pros::v5::AIVision::is_type(obj, pros::AivisionDetectType::object)) {
-				Target detected_obj = Target {
-					.id = obj.id,
-					.center_x = obj.object.element.xoffset + (obj.object.element.width / 2.0),
-					.center_y = obj.object.element.yoffset + (obj.object.element.height / 2.0),
-					.edge_x = obj.object.element.xoffset,
-					.edge_y = obj.object.element.yoffset,
-					.width = obj.object.element.width,
-					.height = obj.object.element.height,
-					.confidence = obj.object.element.score,
-				};
-				addPoint(detected_obj.center_x, detected_obj.center_y, std::to_string(obj.type));
-			} else if (pros::v5::AIVision::is_type(obj, pros::AivisionDetectType::tag)) {
-				Target detected_obj = Target {
-					.id = obj.id,
-					.center_x = (obj.object.tag.x0 + obj.object.tag.x1 + obj.object.tag.x2 + obj.object.tag.x3) / 4.0,
-					.center_y = (obj.object.tag.y0 + obj.object.tag.y1 + obj.object.tag.y2 + obj.object.tag.y3) / 4.0,
-					.edge_x = std::min({obj.object.tag.x0, obj.object.tag.x1, obj.object.tag.x2, obj.object.tag.x3}),
-					.edge_y = std::min({obj.object.tag.y0, obj.object.tag.y1, obj.object.tag.y2, obj.object.tag.y3}),
-					.width = std::max({obj.object.tag.x0, obj.object.tag.x1, obj.object.tag.x2, obj.object.tag.x3}) - std::min({obj.object.tag.x0, obj.object.tag.x1, obj.object.tag.x2, obj.object.tag.x3}),
-					.height = std::max({obj.object.tag.y0, obj.object.tag.y1, obj.object.tag.y2, obj.object.tag.y3}) - std::min({obj.object.tag.y0, obj.object.tag.y1, obj.object.tag.y2, obj.object.tag.y3}),
-					.confidence = 1,
-				};
-				addPoint(detected_obj.center_x, detected_obj.center_y, std::to_string(obj.type));
-			} else {
-				continue;
-			}
-		}
-		pros::delay(10);
-	}
-}
-
-void odometry_tracking(void* param) {
-
-}
-
-void gps_tracking(void* param) {
-	
-}
-
-void init(RobotState& robot_state) {
-	odom_x.reset_position();
-	odom_y.reset_position();
-	imu.reset();
-	while (imu.is_calibrating()) {
-		pros::delay(10);
-	}
-}
-
-void loading(RobotState& robot_state) {
-
-}
-
-void picking(RobotState& robot_state) {
-
-}
-
-void navigation(RobotState& robot_state) {
-
-}
-
-void score(RobotState& robot_state) {
-
-}
-
-void toggle(RobotState& robot_state) {
-
 }

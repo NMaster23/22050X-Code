@@ -15,6 +15,7 @@ inline void HandleStates(
     RobotState& robot_state,
     const std::function<void(RobotState&)> init_fn,
     const std::function<void(RobotState&)> loading_fn,
+    const std::function<void(RobotState&)> loading_stat_fn,
     const std::function<void(RobotState&)> picking_fn,
     const std::function<void(RobotState&)> nav_fn,
     const std::function<void(RobotState&)> score_fn,
@@ -27,8 +28,7 @@ inline void HandleStates(
             init_fn(robot_state);
             break;
         case Loading_Stationary:
-        	intake.move_voltage(-12000);
-	        end_effector.move_voltage(-12000);
+            loading_stat_fn(robot_state);
             break;
         case Loading_Nav:
             loading_fn(robot_state);
