@@ -28,6 +28,7 @@ const int ODOM_Y_PORT = 0;
 
 const int GPS_PORT = 0;
 const int AI_VISION_PORT = 0;
+const int OPTICAL_SENSOR_PORT = 0;
 
 pros::Motor left_front(MOTOR_LEFT_FRONT_PORT);
 pros::Motor left_back(MOTOR_LEFT_BACK_PORT);
@@ -51,6 +52,7 @@ pros::Rotation odom_y(ODOM_Y_PORT);
 
 pros::Gps gps(GPS_PORT);
 pros::AIVision ai_vision(AI_VISION_PORT);
+pros::Optical optical(OPTICAL_SENSOR_PORT);
 
 void ai_vision_sensor(void *param) {
 	ai_vision.reset();
@@ -107,6 +109,7 @@ void init(RobotState& robot_state) {
 	while (imu.is_calibrating()) {
 		pros::delay(10);
 	}
+	robot_state == RobotState::Navigating;
 }
 
 void loading(RobotState& robot_state) {
@@ -133,6 +136,36 @@ void score(RobotState& robot_state) {
 void toggle(RobotState& robot_state) {
 
 }
+
+void intake_decide(RobotState& robot_state) {
+	bool looking_for = true;
+	optical.set_led_pwm(100);
+	int pin = 0;
+	while (looking_for) {
+		float hue = optical.get_hue();
+		if (hue >= 35 && hue <= 65) {
+			pin = 1;
+		} else if (hue >= 195 && hue <= 245) {
+			pin = 2;
+		} else if (hue >= 340 && hue <= 20) {
+			pin = 3;
+		} else {
+			pin = 0;
+		}
+	}
+}
+
+void intake_eject() {
+
+}
+
+void intake_score() {
+	
+}
+
+void deciding_fsm(
+	
+)
 
 /**
  * A callback function for LLEMU's center button.
@@ -202,7 +235,7 @@ void autonomous() {
 	RobotState current_state = RobotState::Init;
 	pros::Task vision_task(ai_vision_sensor);
 	while (true) {
-		HandleStates(current_state, init, loading, loading_stat, picking, navigation, score, toggle);
+		HandleStates(current_state, init, loading, loading_stat, picking, navigation, score, toggle, intake_decide);
 		pros::delay(20);
 	}
 }

@@ -9,6 +9,7 @@ const int MOTOR_CASCADE_RIGHT_PORT = -2;
 const int MOTOR_INTAKE_PORT = 19;
 
 const int END_EFFECTOR_ROT_PORT = 4;
+const int END_EFFECTOR_ROT_SENSE_PORT = 0;
 const int END_EFFECTOR_PORT = 5;
 const int IMU_PORT = 3;
 
@@ -21,6 +22,7 @@ pros::Motor cascade_left(MOTOR_CASCADE_LEFT_PORT);
 pros::Motor cascade_right(MOTOR_CASCADE_RIGHT_PORT);
 
 pros::Motor end_effector_rot(END_EFFECTOR_ROT_PORT);
+pros::Motor end_effector_rot_sense(END_EFFECTOR_ROT_SENSE_PORT);
 pros::Motor intake(MOTOR_INTAKE_PORT);
 pros::Motor end_effector(END_EFFECTOR_PORT);
 
@@ -147,8 +149,45 @@ void opcontrol() {
 		} else {
 			end_effector_rot.brake();
 		}
+		int button_a = master.get_digital(DIGITAL_A);
+		if (button_a) {
+			end_effector_control(90);
+		}
 		left_drive.move(dir + turn);
 		right_drive.move(dir - turn);
 		pros::delay(10); 
+	}
+}
+
+void end_effector_control(float degrees) {
+	bool finished = false;
+	while (!finished) {
+		if (end_effector_rot_sense.get_position() > degrees) {
+			end_effector_rot.move_voltage(-12000);
+		} else if (end_effector_rot_sense.get_position() < degrees) {
+			end_effector_rot.move_voltage(12000);
+		} else {
+			finished = true;
+			end_effector_rot.brake();
+		}
+		
+		if (std::abs(end_effector_rot_sense.get_position() - degrees) <= 5) {
+			finished = true;
+			end_effector_rot.brake();
+		}
+		pros::delay(10);
+	}
+}
+
+void cascade_control() {
+	bool finished = false;
+	float cascade_pos = cascade.get_position();
+	while (!finished) {
+		cascade.move_voltage(-12000);
+		if (cascade.get_position() <= 3) {
+			finished = true;
+			cascade.brake();
+		}
+		pros::delay(10);
 	}
 }

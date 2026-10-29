@@ -9,6 +9,7 @@ enum RobotState {
 	Navigating,
 	Scoring,
 	Toggling,
+    Intake_Dec,
 };
 
 inline void HandleStates(
@@ -19,7 +20,8 @@ inline void HandleStates(
     const std::function<void(RobotState&)> picking_fn,
     const std::function<void(RobotState&)> nav_fn,
     const std::function<void(RobotState&)> score_fn,
-    const std::function<void(RobotState&)> toggle_fn
+    const std::function<void(RobotState&)> toggle_fn,
+    const std::function<void(RobotState&)> intake_decide_fn
 )
 {
     switch (robot_state)
@@ -44,6 +46,9 @@ inline void HandleStates(
             break;
         case Toggling:
             toggle_fn(robot_state);
+            break;
+        case Intake_Dec:
+            intake_decide_fn(robot_state);
             break;
     }
 }
