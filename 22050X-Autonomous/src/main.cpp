@@ -3,13 +3,32 @@
 #include "robot_fsm.hpp"
 #include "field_map.hpp"
 
+enum class AllianceColor {
+	Red,
+	Blue,
+	None,
+};
+
+enum class AutonMode {
+	HardCoded,
+	Experimental,
+};
+
 struct RobotPos {
 	double x;
 	double y;
 };
 
+AutonMode sel_auton_mode = AutonMode::HardCoded;
+AllianceColor sel_alliance_color = AllianceColor::None;
+
 RobotPos position = {0.0, 0.0};
 pros::Mutex pos_mutex;
+
+const int WHEEL_R = 1.0;
+
+const int BTN_BLUE_POS[4] = {260, 60, 440, 180};
+const int BTN_RED_POS[4] = {40, 60, 220, 180};
 
 const int MOTOR_LEFT_FRONT_PORT = 20;
 const int MOTOR_LEFT_BACK_PORT = -8;
@@ -95,11 +114,28 @@ void ai_vision_sensor(void *param) {
 }
 
 void odometry_tracking(void* param) {
-
+	while (true) {
+		float x_pos = odom_x.get_position();
+		float y_pos = odom_y.get_position();
+		float dist_x = 2 * std::numbers::pi * WHEEL_R * (x_pos / 36000);
+		float dist_y = 2 * std::numbers::pi * WHEEL_R * (y_pos / 36000);
+		position = {
+			dist_x,
+			dist_y,
+		};
+		pros::delay(20);
+	}
 }
 
 void gps_tracking(void* param) {
-	
+	while (true) {
+		float gps_x = gps.get_position_x();
+		float gps_y = gps.get_position_y();
+		position = {
+			gps_x,
+			gps_y,
+		};
+	}
 }
 
 void init(RobotState& robot_state) {
@@ -163,9 +199,58 @@ void intake_score() {
 	
 }
 
-void deciding_fsm(
+void deciding_fsm() {
 	
-)
+}
+
+void alliance_color(pros::Controller master) {
+	pros::screen::set_eraser(RGB2COLOR(0, 0, 0));
+	pros::screen::erase();
+	pros::screen::set_eraser(RGB2COLOR(255, 255, 255));
+	pros::screen::set_pen(RGB2COLOR(255, 0, 0));
+	pros::screen::fill_rect(BTN_RED_POS[0], BTN_RED_POS[1], BTN_RED_POS[2], BTN_RED_POS[3]);
+	pros::screen::set_pen(RGB2COLOR(255, 255, 255));
+	pros::screen::print(TEXT_MEDIUM, (BTN_RED_POS[0] + 30), (BTN_RED_POS[2] + 50), "Red Alliance");
+	pros::screen::set_pen(RGB2COLOR(0, 0, 255));
+	pros::screen::fill_rect(BTN_BLUE_POS[0], BTN_BLUE_POS[1], BTN_BLUE_POS[2], BTN_BLUE_POS[3]);
+	pros::screen::set_pen(RGB2COLOR(255, 255, 255));
+	pros::screen::print(TEXT_MEDIUM, (BTN_BLUE_POS[0] + 30), (BTN_BLUE_POS[2] + 50), "Blue Alliance");
+	pros::screen::set_pen(RGB2COLOR(255, 255, 255));
+	pros::screen::print(TEXT_MEDIUM, 10, 10, "Select Alliance Color");
+	while (true) {
+		pros::screen_touch_status_s_t status = pros::screen::touch_status();
+		if (status.press_count > 0) {
+			if (status.x <= BTN_RED_POS[2] && status.x >= BTN_RED_POS[0] && status.y >= BTN_RED_POS[1] && status.y <= BTN_RED_POS[3]) {
+				sel_alliance_color = AllianceColor::Red;
+				master.rumble(". - .");
+				break;
+			} else if (status.x <= BTN_BLUE_POS[2] && status.x >= BTN_BLUE_POS[0] && status.y >= BTN_BLUE_POS[1] && status.y <= BTN_BLUE_POS[3]) {
+				sel_alliance_color = AllianceColor::Blue;
+				master.rumble("- . . .");
+				break;
+			}
+		}
+		pros::delay(20);
+	}
+	pros::screen::set_eraser(RGB2COLOR(0, 0, 0));
+	pros::screen::erase();
+	uint32_t c_s_t = pros::millis();
+	while (pros::millis() - c_s_t < 5000) {
+		if (master.get_digital(DIGITAL_L1) && master.get_digital(DIGITAL_L2) && master.get_digital(DIGITAL_R1) && master.get_digital(DIGITAL_R2)) {
+			sel_auton_mode = AutonMode::Experimental;
+			master.rumble("- -");
+			break;
+		}
+		pros::delay(20);
+	}
+	if (sel_alliance_color == AllianceColor::Red) {
+		pros::screen::set_pen(RGB2COLOR(255, 0, 0));
+		pros::screen::print(TEXT_MEDIUM, 3, "Red Alliance Selected");
+	} else if (sel_alliance_color == AllianceColor::Blue) {
+		pros::screen::set_pen(RGB2COLOR(0, 0, 255));
+		pros::screen::print(TEXT_MEDIUM, 3, "Blue Alliance Selected");
+	}
+}
 
 /**
  * A callback function for LLEMU's center button.
@@ -185,6 +270,7 @@ void on_center_button() {
  * to keep execution time for this mode under a few seconds.
  */
 void initialize() {
+	pros::Controller master(pros::E_CONTROLLER_MASTER);
 	end_effector.move(0);
 	left_drive.move(0);
 	right_drive.move(0);
@@ -194,6 +280,7 @@ void initialize() {
 	end_effector_rot.move(0);
 	intake.move_voltage(0);
 	pros::delay(200);
+	alliance_color(master);
 }
 
 /**
@@ -228,15 +315,20 @@ void competition_initialize() {
  * from where it left off.
  */
 void autonomous() {
-	pros::Controller master(pros::E_CONTROLLER_MASTER);
-	ai_vision.enable_detection_types(pros::AivisionModeType::tags, pros::AivisionModeType::objects);
-	cascade.set_brake_mode(MOTOR_BRAKE_HOLD);
-	end_effector_rot.set_brake_mode(MOTOR_BRAKE_HOLD);
-	RobotState current_state = RobotState::Init;
-	pros::Task vision_task(ai_vision_sensor);
-	while (true) {
-		HandleStates(current_state, init, loading, loading_stat, picking, navigation, score, toggle, intake_decide);
-		pros::delay(20);
+	if (sel_auton_mode == AutonMode::Experimental) {
+		ai_vision.enable_detection_types(pros::AivisionModeType::tags, pros::AivisionModeType::objects);
+		cascade.set_brake_mode(MOTOR_BRAKE_HOLD);
+		end_effector_rot.set_brake_mode(MOTOR_BRAKE_HOLD);
+		RobotState current_state = RobotState::Init;
+		pros::Task vision_task(ai_vision_sensor);
+		while (true) {
+			HandleStates(current_state, init, loading, loading_stat, picking, navigation, score, toggle, intake_decide);
+			pros::delay(20);
+		}
+	} else if (sel_auton_mode == AutonMode::HardCoded) {
+
+	} else {
+		pros::screen::print(TEXT_LARGE, 3, "Error");
 	}
 }
 

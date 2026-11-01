@@ -1,4 +1,5 @@
 #include "main.h"
+#include <cmath>
 
 const int MOTOR_LEFT_FRONT_PORT = 20;
 const int MOTOR_LEFT_BACK_PORT = -8;
@@ -9,9 +10,11 @@ const int MOTOR_CASCADE_RIGHT_PORT = -2;
 const int MOTOR_INTAKE_PORT = 19;
 
 const int END_EFFECTOR_ROT_PORT = 4;
-const int END_EFFECTOR_ROT_SENSE_PORT = 0;
+//const int END_EFFECTOR_ROT_SENSE_PORT = 0;
 const int END_EFFECTOR_PORT = 5;
 const int IMU_PORT = 3;
+
+bool rotating_macro = false;
 
 pros::Motor left_front(MOTOR_LEFT_FRONT_PORT);
 pros::Motor left_back(MOTOR_LEFT_BACK_PORT);
@@ -22,7 +25,7 @@ pros::Motor cascade_left(MOTOR_CASCADE_LEFT_PORT);
 pros::Motor cascade_right(MOTOR_CASCADE_RIGHT_PORT);
 
 pros::Motor end_effector_rot(END_EFFECTOR_ROT_PORT);
-pros::Motor end_effector_rot_sense(END_EFFECTOR_ROT_SENSE_PORT);
+//pros::Motor end_effector_rot_sense(END_EFFECTOR_ROT_SENSE_PORT);
 pros::Motor intake(MOTOR_INTAKE_PORT);
 pros::Motor end_effector(END_EFFECTOR_PORT);
 
@@ -30,6 +33,41 @@ pros::MotorGroup left_drive({MOTOR_LEFT_FRONT_PORT, MOTOR_LEFT_BACK_PORT});
 pros::MotorGroup right_drive({MOTOR_RIGHT_FRONT_PORT, MOTOR_RIGHT_BACK_PORT});
 pros::MotorGroup cascade({MOTOR_CASCADE_LEFT_PORT, MOTOR_CASCADE_RIGHT_PORT});
 pros::Imu imu(IMU_PORT);
+
+
+/*void end_effector_control(float degrees) {
+	bool finished = false;
+	rotating_macro = true;
+	while (!finished) {
+		if (end_effector_rot_sense.get_position() > degrees) {
+			end_effector_rot.move_voltage(-12000);
+		} else if (end_effector_rot_sense.get_position() < degrees) {
+			end_effector_rot.move_voltage(12000);
+		} else {
+			finished = true;
+			end_effector_rot.brake();
+		}
+		
+		if (std::abs(end_effector_rot_sense.get_position() - degrees) <= 5) {
+			finished = true;
+			end_effector_rot.brake();
+		}
+		pros::delay(10);
+	}
+	rotating_macro = false;
+}*/
+
+void cascade_control() {
+	bool finished = false;
+	while (!finished) {
+		cascade.move_voltage(-12000);
+		if (cascade.get_position() <= 3) {
+			finished = true;
+			cascade.brake();
+		}
+		pros::delay(10);
+	}
+}
 
 /**
  * A callback function for LLEMU's center button.
@@ -126,68 +164,31 @@ void opcontrol() {
 		int button_r2 = master.get_digital(DIGITAL_R2);
 		if (button_r1) {
 			intake.move_voltage(-12000);
+			end_effector.move_voltage(-12000);
 		} else if (button_r2) {
 			intake.move_voltage(12000);
+			end_effector.move_voltage(12000);
 		} else {
 			intake.move_voltage(0);
+			end_effector.move_voltage(0);
 		}
 		int button_left = master.get_digital(DIGITAL_LEFT);
 		int button_right = master.get_digital(DIGITAL_RIGHT);
-		if (button_left) {
-			end_effector.move_voltage(12000);
-		} else if (button_right) {
-			end_effector.move_voltage(-12000);
-		} else {
-			end_effector.move_voltage(0);
-		}
 		int button_up = master.get_digital(DIGITAL_UP);
 		int button_down = master.get_digital(DIGITAL_DOWN);
 		if (button_up) {
 			end_effector_rot.move_velocity(-100);
 		} else if (button_down) {
 			end_effector_rot.move_velocity(100);
-		} else {
+		} else if (!rotating_macro) {
 			end_effector_rot.brake();
 		}
-		int button_a = master.get_digital(DIGITAL_A);
-		if (button_a) {
-			end_effector_control(90);
-		}
+		int button_a = master.get_digital_new_press(DIGITAL_A);
+		/*if (button_a) {
+			pros::Task rotate_task([]{ end_effector_control(90); });
+		}*/
 		left_drive.move(dir + turn);
 		right_drive.move(dir - turn);
 		pros::delay(10); 
-	}
-}
-
-void end_effector_control(float degrees) {
-	bool finished = false;
-	while (!finished) {
-		if (end_effector_rot_sense.get_position() > degrees) {
-			end_effector_rot.move_voltage(-12000);
-		} else if (end_effector_rot_sense.get_position() < degrees) {
-			end_effector_rot.move_voltage(12000);
-		} else {
-			finished = true;
-			end_effector_rot.brake();
-		}
-		
-		if (std::abs(end_effector_rot_sense.get_position() - degrees) <= 5) {
-			finished = true;
-			end_effector_rot.brake();
-		}
-		pros::delay(10);
-	}
-}
-
-void cascade_control() {
-	bool finished = false;
-	float cascade_pos = cascade.get_position();
-	while (!finished) {
-		cascade.move_voltage(-12000);
-		if (cascade.get_position() <= 3) {
-			finished = true;
-			cascade.brake();
-		}
-		pros::delay(10);
 	}
 }
