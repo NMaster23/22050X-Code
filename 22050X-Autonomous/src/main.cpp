@@ -2,6 +2,7 @@
 #include <map>
 #include "robot_fsm.hpp"
 #include "field_map.hpp"
+#include "lemlib/api.hpp"
 
 enum class AllianceColor {
 	Red,
@@ -31,13 +32,14 @@ const int BTN_BLUE_POS[4] = {260, 60, 440, 180};
 const int BTN_RED_POS[4] = {40, 60, 220, 180};
 
 const int MOTOR_LEFT_FRONT_PORT = 20;
-const int MOTOR_LEFT_BACK_PORT = -8;
+const int MOTOR_LEFT_BACK_PORT = -10;
 const int MOTOR_RIGHT_FRONT_PORT = -7;
 const int MOTOR_RIGHT_BACK_PORT = 9;
 const int MOTOR_CASCADE_LEFT_PORT = 1;
 const int MOTOR_CASCADE_RIGHT_PORT = -2;
 const int MOTOR_INTAKE_PORT = 19;
 
+const int END_EFFECTOR_ROT_SENSE_PORT = 0;
 const int END_EFFECTOR_ROT_PORT = 4;
 const int END_EFFECTOR_PORT = 5;
 const int IMU_PORT = 3;
@@ -60,6 +62,7 @@ pros::Motor cascade_right(MOTOR_CASCADE_RIGHT_PORT);
 pros::Motor end_effector_rot(END_EFFECTOR_ROT_PORT);
 pros::Motor intake(MOTOR_INTAKE_PORT);
 pros::Motor end_effector(END_EFFECTOR_PORT);
+pros::Motor end_effector_rot_sense(END_EFFECTOR_ROT_SENSE_PORT);
 
 pros::MotorGroup left_drive({MOTOR_LEFT_FRONT_PORT, MOTOR_LEFT_BACK_PORT});
 pros::MotorGroup right_drive({MOTOR_RIGHT_FRONT_PORT, MOTOR_RIGHT_BACK_PORT});
@@ -72,6 +75,76 @@ pros::Rotation odom_y(ODOM_Y_PORT);
 pros::Gps gps(GPS_PORT);
 pros::AIVision ai_vision(AI_VISION_PORT);
 pros::Optical optical(OPTICAL_SENSOR_PORT);
+
+lemlib::TrackingWheel horizontal_tracking(&odom_x, lemlib::Omniwheel::NEW_2, -5.75);
+lemlib::TrackingWheel vertical_tracking(&odom_y, lemlib::Omniwheel::NEW_2, -2.5);
+
+lemlib::Odomsensors = sensors(&vertical_tracking,
+	nullptr,
+	&horizontal_tracking,
+	nullptr,
+	&imu
+);
+
+lemlib::ControllerSettings lat_controller(10,
+										0,
+										3,
+										3,
+										1,
+										100,
+										3,
+										500,
+										20,
+);
+
+lemlib::ControllerSettings angular_controller(2,
+										0,
+										10,
+										3,
+										1,
+										100,
+										3,
+										500,
+										0,
+);
+
+lemlib::Drivetrain drivetrain(&left_drive,
+							&right_drive,
+							10,
+							lemlib::Omniwheel::NEW_4,
+							600,
+							2
+);
+
+lemlib::Chassis chassis(drivetrain,
+						lat_controller,
+						angular_controller,
+						sensors,
+);
+
+bool rotating_macro = false;
+
+void end_effector_control(float degrees) {
+	bool finished = false;
+	rotating_macro = true;
+	while (!finished) {
+		if (end_effector_rot_sense.get_position() > degrees) {
+			end_effector_rot.move_voltage(-12000);
+		} else if (end_effector_rot_sense.get_position() < degrees) {
+			end_effector_rot.move_voltage(12000);
+		} else {
+			finished = true;
+			end_effector_rot.brake();
+		}
+		
+		if (std::abs(end_effector_rot_sense.get_position() - degrees) <= 5) {
+			finished = true;
+			end_effector_rot.brake();
+		}
+		pros::delay(10);
+	}
+	rotating_macro = false;
+}
 
 void ai_vision_sensor(void *param) {
 	ai_vision.reset();
@@ -113,28 +186,15 @@ void ai_vision_sensor(void *param) {
 	}
 }
 
-void odometry_tracking(void* param) {
+void field_tracking(void* param) {
 	while (true) {
+		float gps_x = gps.get_position_x();
+		float gps_y = gps.get_position_y();
 		float x_pos = odom_x.get_position();
 		float y_pos = odom_y.get_position();
 		float dist_x = 2 * std::numbers::pi * WHEEL_R * (x_pos / 36000);
 		float dist_y = 2 * std::numbers::pi * WHEEL_R * (y_pos / 36000);
-		position = {
-			dist_x,
-			dist_y,
-		};
 		pros::delay(20);
-	}
-}
-
-void gps_tracking(void* param) {
-	while (true) {
-		float gps_x = gps.get_position_x();
-		float gps_y = gps.get_position_y();
-		position = {
-			gps_x,
-			gps_y,
-		};
 	}
 }
 
@@ -170,9 +230,13 @@ void score(RobotState& robot_state) {
 }
 
 void toggle(RobotState& robot_state) {
-
+	
 }
-
+/*
+1: Yellow
+2: Blue
+3: Red
+*/
 void intake_decide(RobotState& robot_state) {
 	bool looking_for = true;
 	optical.set_led_pwm(100);
@@ -181,22 +245,37 @@ void intake_decide(RobotState& robot_state) {
 		float hue = optical.get_hue();
 		if (hue >= 35 && hue <= 65) {
 			pin = 1;
+			intake_handling(2);
 		} else if (hue >= 195 && hue <= 245) {
 			pin = 2;
+			if (sel_alliance_color == AllianceColor::Blue) {
+				intake_handling(2);
+			} else {
+				intake_handling(1);
+			}
 		} else if (hue >= 340 && hue <= 20) {
 			pin = 3;
+			if (sel_alliance_color == AllianceColor::Red) {
+				intake_handling(2);
+			} else {
+				intake_handling(1);
+			}
 		} else {
 			pin = 0;
 		}
 	}
 }
 
-void intake_eject() {
-
-}
-
-void intake_score() {
-	
+void intake_handling(int case) {
+	if (case == 1) {
+		// eject
+		end_effector_control(120);
+		intake.move_voltage(12000);
+	} else if (case == 2) {
+		// score
+		end_effector_control(0);
+		intake.move_voltage(12000);
+	}
 }
 
 void deciding_fsm() {

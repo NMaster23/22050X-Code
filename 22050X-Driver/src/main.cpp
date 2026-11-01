@@ -1,8 +1,9 @@
 #include "main.h"
 #include <cmath>
+#include "lemlib/api.hpp"
 
 const int MOTOR_LEFT_FRONT_PORT = 20;
-const int MOTOR_LEFT_BACK_PORT = -8;
+const int MOTOR_LEFT_BACK_PORT = -10;
 const int MOTOR_RIGHT_FRONT_PORT = -7;
 const int MOTOR_RIGHT_BACK_PORT = 9;
 const int MOTOR_CASCADE_LEFT_PORT = 1;
@@ -33,6 +34,52 @@ pros::MotorGroup left_drive({MOTOR_LEFT_FRONT_PORT, MOTOR_LEFT_BACK_PORT});
 pros::MotorGroup right_drive({MOTOR_RIGHT_FRONT_PORT, MOTOR_RIGHT_BACK_PORT});
 pros::MotorGroup cascade({MOTOR_CASCADE_LEFT_PORT, MOTOR_CASCADE_RIGHT_PORT});
 pros::Imu imu(IMU_PORT);
+
+lemlib::TrackingWheel horizontal_tracking(&odom_x, lemlib::Omniwheel::NEW_2, -5.75);
+lemlib::TrackingWheel vertical_tracking(&odom_y, lemlib::Omniwheel::NEW_2, -2.5);
+
+lemlib::Odomsensors = sensors(&vertical_tracking,
+	nullptr,
+	&horizontal_tracking,
+	nullptr,
+	&imu
+);
+
+lemlib::ControllerSettings lat_controller(10,
+										0,
+										3,
+										3,
+										1,
+										100,
+										3,
+										500,
+										20,
+);
+
+lemlib::ControllerSettings angular_controller(2,
+										0,
+										10,
+										3,
+										1,
+										100,
+										3,
+										500,
+										0,
+);
+
+lemlib::Drivetrain drivetrain(&left_drive,
+							&right_drive,
+							10,
+							lemlib::Omniwheel::NEW_4,
+							600,
+							2
+);
+
+lemlib::Chassis chassis(drivetrain,
+						lat_controller,
+						angular_controller,
+						sensors,
+);
 
 
 /*void end_effector_control(float degrees) {
@@ -149,8 +196,8 @@ void opcontrol() {
 	cascade.set_brake_mode(MOTOR_BRAKE_HOLD);
 	end_effector_rot.set_brake_mode(MOTOR_BRAKE_HOLD);
 	while (true) {
-		int dir = master.get_analog(ANALOG_LEFT_Y);
-		int turn = master.get_analog(ANALOG_RIGHT_X);
+		int left_y = master.get_analog(ANALOG_LEFT_Y);
+		int right_x = master.get_analog(ANALOG_RIGHT_X);
 		int button_l1 = master.get_digital(DIGITAL_L1);
 		int button_l2 = master.get_digital(DIGITAL_L2);
 		if (button_l1) {
@@ -187,8 +234,7 @@ void opcontrol() {
 		/*if (button_a) {
 			pros::Task rotate_task([]{ end_effector_control(90); });
 		}*/
-		left_drive.move(dir + turn);
-		right_drive.move(dir - turn);
+		chassis.arcade(left_y, right_x, false);
 		pros::delay(10); 
 	}
 }
