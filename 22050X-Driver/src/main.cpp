@@ -1,6 +1,8 @@
 #include "main.h"
 #include <cmath>
 #include "lemlib/api.hpp"
+#include <thread>
+#include <chrono>
 
 const int MOTOR_LEFT_FRONT_PORT = 20;
 const int MOTOR_LEFT_BACK_PORT = -10;
@@ -11,9 +13,12 @@ const int MOTOR_CASCADE_RIGHT_PORT = -2;
 const int MOTOR_INTAKE_PORT = 19;
 
 const int END_EFFECTOR_ROT_PORT = 4;
-//const int END_EFFECTOR_ROT_SENSE_PORT = 0;
+const int END_EFFECTOR_ROT_SENSE_PORT = 0;
 const int END_EFFECTOR_PORT = 5;
 const int IMU_PORT = 3;
+
+const int ODOM_X_PORT = 0;
+const int ODOM_Y_PORT = 0;
 
 bool rotating_macro = false;
 
@@ -26,7 +31,7 @@ pros::Motor cascade_left(MOTOR_CASCADE_LEFT_PORT);
 pros::Motor cascade_right(MOTOR_CASCADE_RIGHT_PORT);
 
 pros::Motor end_effector_rot(END_EFFECTOR_ROT_PORT);
-//pros::Motor end_effector_rot_sense(END_EFFECTOR_ROT_SENSE_PORT);
+pros::Motor end_effector_rot_sense(END_EFFECTOR_ROT_SENSE_PORT);
 pros::Motor intake(MOTOR_INTAKE_PORT);
 pros::Motor end_effector(END_EFFECTOR_PORT);
 
@@ -35,10 +40,13 @@ pros::MotorGroup right_drive({MOTOR_RIGHT_FRONT_PORT, MOTOR_RIGHT_BACK_PORT});
 pros::MotorGroup cascade({MOTOR_CASCADE_LEFT_PORT, MOTOR_CASCADE_RIGHT_PORT});
 pros::Imu imu(IMU_PORT);
 
+pros::Rotation odom_x(ODOM_X_PORT);
+pros::Rotation odom_y(ODOM_Y_PORT);
+
 lemlib::TrackingWheel horizontal_tracking(&odom_x, lemlib::Omniwheel::NEW_2, -5.75);
 lemlib::TrackingWheel vertical_tracking(&odom_y, lemlib::Omniwheel::NEW_2, -2.5);
 
-lemlib::Odomsensors = sensors(&vertical_tracking,
+lemlib::OdomSensors sensors(&vertical_tracking,
 	nullptr,
 	&horizontal_tracking,
 	nullptr,
@@ -82,7 +90,7 @@ lemlib::Chassis chassis(drivetrain,
 );
 
 
-/*void end_effector_control(float degrees) {
+void end_effector_control(float degrees) {
 	bool finished = false;
 	rotating_macro = true;
 	while (!finished) {
@@ -102,13 +110,13 @@ lemlib::Chassis chassis(drivetrain,
 		pros::delay(10);
 	}
 	rotating_macro = false;
-}*/
+}
 
-void cascade_control() {
+void cascade_control(float to_pos) {
 	bool finished = false;
 	while (!finished) {
 		cascade.move_voltage(-12000);
-		if (cascade.get_position() <= 3) {
+		if (cascade.get_position() <= 3 + to_pos && cascade.get_position() >= -3 + to_pos) {
 			finished = true;
 			cascade.brake();
 		}
@@ -223,18 +231,17 @@ void opcontrol() {
 		int button_right = master.get_digital(DIGITAL_RIGHT);
 		int button_up = master.get_digital(DIGITAL_UP);
 		int button_down = master.get_digital(DIGITAL_DOWN);
-		if (button_up) {
-			end_effector_rot.move_velocity(-100);
-		} else if (button_down) {
-			end_effector_rot.move_velocity(100);
+		if (button_down) {
+			pros::Task cascade_task([] { cascade_control(0); });
 		} else if (!rotating_macro) {
 			end_effector_rot.brake();
 		}
-		int button_a = master.get_digital_new_press(DIGITAL_A);
-		/*if (button_a) {
+		int button_b = master.get_digital_new_press(DIGITAL_B);
+		if (button_b) {
 			pros::Task rotate_task([]{ end_effector_control(90); });
-		}*/
-		chassis.arcade(left_y, right_x, false);
+		}
+		left_drive.move(left_y + right_x);
+		right_drive.move(left_y - right_x);
 		pros::delay(10); 
 	}
 }

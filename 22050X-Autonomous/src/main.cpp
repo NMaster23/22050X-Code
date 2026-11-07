@@ -3,6 +3,8 @@
 #include "robot_fsm.hpp"
 #include "field_map.hpp"
 #include "lemlib/api.hpp"
+#include <chrono>
+#include <thread>
 
 enum class AllianceColor {
 	Red,
@@ -79,7 +81,7 @@ pros::Optical optical(OPTICAL_SENSOR_PORT);
 lemlib::TrackingWheel horizontal_tracking(&odom_x, lemlib::Omniwheel::NEW_2, -5.75);
 lemlib::TrackingWheel vertical_tracking(&odom_y, lemlib::Omniwheel::NEW_2, -2.5);
 
-lemlib::Odomsensors = sensors(&vertical_tracking,
+lemlib::OdomSensors sensors(&vertical_tracking,
 	nullptr,
 	&horizontal_tracking,
 	nullptr,
@@ -94,7 +96,7 @@ lemlib::ControllerSettings lat_controller(10,
 										100,
 										3,
 										500,
-										20,
+										20
 );
 
 lemlib::ControllerSettings angular_controller(2,
@@ -105,7 +107,7 @@ lemlib::ControllerSettings angular_controller(2,
 										100,
 										3,
 										500,
-										0,
+										0
 );
 
 lemlib::Drivetrain drivetrain(&left_drive,
@@ -119,10 +121,17 @@ lemlib::Drivetrain drivetrain(&left_drive,
 lemlib::Chassis chassis(drivetrain,
 						lat_controller,
 						angular_controller,
-						sensors,
+						sensors
 );
 
 bool rotating_macro = false;
+
+void drive_for(float dist, int timeout, lemlib::Pose current, float max_speed) {
+    float theta_rad = current.theta * M_PI / 180.0;
+    float target_x = current.x + (dist * std::sin(theta_rad));
+    float target_y = current.y + (dist * std::cos(theta_rad));
+    chassis.moveToPoint(target_x, target_y, timeout, { .maxSpeed = max_speed });
+}
 
 void end_effector_control(float degrees) {
 	bool finished = false;
@@ -144,6 +153,18 @@ void end_effector_control(float degrees) {
 		pros::delay(10);
 	}
 	rotating_macro = false;
+}
+
+void cascade_control(float to_pos) {
+	bool finished = false;
+	while (!finished) {
+		cascade.move_voltage(-12000);
+		if (cascade.get_position() <= 3 + to_pos && cascade.get_position() >= -3 + to_pos) {
+			finished = true;
+			cascade.brake();
+		}
+		pros::delay(10);
+	}
 }
 
 void ai_vision_sensor(void *param) {
@@ -226,12 +247,30 @@ void navigation(RobotState& robot_state) {
 }
 
 void score(RobotState& robot_state) {
-
+	end_effector.move_voltage(-12000);
+	std::this_thread::sleep_for(std::chrono::seconds(3));
+	end_effector.move_voltage(0);
+	cascade_control(50);
+	end_effector_control(120);
+	drive_for(8.0, 2000, chassis.getPose(), 127);
 }
 
 void toggle(RobotState& robot_state) {
 	
 }
+
+void intake_handling(int mode) {
+	if (mode == 1) {
+		// eject
+		end_effector_control(120);
+		intake.move_voltage(12000);
+	} else if (mode == 2) {
+		// score
+		end_effector_control(0);
+		intake.move_voltage(12000);
+	}
+}
+
 /*
 1: Yellow
 2: Blue
@@ -253,7 +292,7 @@ void intake_decide(RobotState& robot_state) {
 			} else {
 				intake_handling(1);
 			}
-		} else if (hue >= 340 && hue <= 20) {
+		} else if (hue >= 340 || hue <= 20) {
 			pin = 3;
 			if (sel_alliance_color == AllianceColor::Red) {
 				intake_handling(2);
@@ -263,18 +302,6 @@ void intake_decide(RobotState& robot_state) {
 		} else {
 			pin = 0;
 		}
-	}
-}
-
-void intake_handling(int case) {
-	if (case == 1) {
-		// eject
-		end_effector_control(120);
-		intake.move_voltage(12000);
-	} else if (case == 2) {
-		// score
-		end_effector_control(0);
-		intake.move_voltage(12000);
 	}
 }
 
