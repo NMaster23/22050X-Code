@@ -1,5 +1,9 @@
 #pragma once
 
+#if __has_include("lead_secret.hpp")
+#include "lead_secret.hpp"
+#endif
+
 #include "main.h"
 #include <cstring>
 #include <string>
