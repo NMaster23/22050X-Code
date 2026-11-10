@@ -257,9 +257,9 @@ void opcontrol() {
 			if (pros::millis() - reverse_start_time >= 3000) {
 				reversing_end_effector = false;
 			}
-			end_effector.move_voltage(-12000);
-		} else {
 			end_effector.move_voltage(12000);
+		} else {
+			end_effector.move_voltage(-12000);
 		}
 
 		left_drive.move(left_y + right_x);
