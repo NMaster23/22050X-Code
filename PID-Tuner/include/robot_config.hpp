@@ -59,49 +59,49 @@ constexpr float PROS_THERMAL_LIMIT_C = 55.0f;
 // ============================================================================
 
 // LemLib Drivetrain Horizontal Drift
-constexpr float TUNED_HORIZONTAL_DRIFT = 2.0f;
-constexpr float TUNED_BOOMERANG_LEAD = 0.6f;
+constexpr float TUNED_HORIZONTAL_DRIFT = 4.2000f;
+constexpr float TUNED_BOOMERANG_LEAD = 0.5400f;
 
 // LemLib Lateral Controller Settings (moveToPoint / moveToPose lateral)
-constexpr float LATERAL_KP = 10.0f;
-constexpr float LATERAL_KI = 0.0f;
-constexpr float LATERAL_KD = 30.0f;
-constexpr float LATERAL_WINDUP_RANGE = 3.0f;
-constexpr float LATERAL_SMALL_ERROR = 1.0f;
-constexpr float LATERAL_SMALL_ERROR_TIMEOUT = 100.0f;
-constexpr float LATERAL_LARGE_ERROR = 3.0f;
-constexpr float LATERAL_LARGE_ERROR_TIMEOUT = 500.0f;
-constexpr float LATERAL_SLEW = 20.0f;
+constexpr float LATERAL_KP = 14.3732f;
+constexpr float LATERAL_KI = 0.0122f;
+constexpr float LATERAL_KD = 22.0000f;
+constexpr float LATERAL_WINDUP_RANGE = 1.8843f;
+constexpr float LATERAL_SMALL_ERROR = 0.3500f;
+constexpr float LATERAL_SMALL_ERROR_TIMEOUT = 75.0f;
+constexpr float LATERAL_LARGE_ERROR = 1.2500f;
+constexpr float LATERAL_LARGE_ERROR_TIMEOUT = 260.0f;
+constexpr float LATERAL_SLEW = 13.3750f;
 
 // LemLib Angular Controller Settings (turnToHeading / turnToPoint)
-constexpr float ANGULAR_KP = 2.0f;
-constexpr float ANGULAR_KI = 0.0f;
-constexpr float ANGULAR_KD = 10.0f;
-constexpr float ANGULAR_WINDUP_RANGE = 3.0f;
-constexpr float ANGULAR_SMALL_ERROR = 1.0f;
-constexpr float ANGULAR_SMALL_ERROR_TIMEOUT = 100.0f;
-constexpr float ANGULAR_LARGE_ERROR = 3.0f;
-constexpr float ANGULAR_LARGE_ERROR_TIMEOUT = 500.0f;
-constexpr float ANGULAR_SLEW = 0.0f;
+constexpr float ANGULAR_KP = 2.2242f;
+constexpr float ANGULAR_KI = 0.0150f;
+constexpr float ANGULAR_KD = 23.4720f;
+constexpr float ANGULAR_WINDUP_RANGE = 6.0000f;
+constexpr float ANGULAR_SMALL_ERROR = 0.6500f;
+constexpr float ANGULAR_SMALL_ERROR_TIMEOUT = 70.0f;
+constexpr float ANGULAR_LARGE_ERROR = 2.0000f;
+constexpr float ANGULAR_LARGE_ERROR_TIMEOUT = 240.0f;
+constexpr float ANGULAR_SLEW = 0.0000f;
 
 // LemLib Swing Controller Settings (swingToHeading / swingToPoint)
-constexpr float SWING_KP = 2.4f;
-constexpr float SWING_KI = 0.0f;
-constexpr float SWING_KD = 12.0f;
-constexpr float SWING_WINDUP_RANGE = 3.0f;
-constexpr float SWING_SMALL_ERROR = 1.0f;
-constexpr float SWING_SMALL_ERROR_TIMEOUT = 100.0f;
-constexpr float SWING_LARGE_ERROR = 3.0f;
-constexpr float SWING_LARGE_ERROR_TIMEOUT = 500.0f;
-constexpr float SWING_SLEW = 0.0f;
+constexpr float SWING_KP = 2.6246f;
+constexpr float SWING_KI = 0.0150f;
+constexpr float SWING_KD = 26.0000f;
+constexpr float SWING_WINDUP_RANGE = 6.0000f;
+constexpr float SWING_SMALL_ERROR = 0.6500f;
+constexpr float SWING_SMALL_ERROR_TIMEOUT = 75.0f;
+constexpr float SWING_LARGE_ERROR = 2.0000f;
+constexpr float SWING_LARGE_ERROR_TIMEOUT = 250.0f;
+constexpr float SWING_SLEW = 0.0000f;
 
 // Cascade Lift lemlib::PID Settings (2-Motor 6:1 Blue Cartridge)
-constexpr float CASCADE_KP = 14.5f;
-constexpr float CASCADE_KI = 0.08f;
-constexpr float CASCADE_KD = 42.0f;
-constexpr float CASCADE_WINDUP_RANGE = 2.5f;
+constexpr float CASCADE_KP = 14.5000f;
+constexpr float CASCADE_KI = 0.0800f;
+constexpr float CASCADE_KD = 42.0000f;
+constexpr float CASCADE_WINDUP_RANGE = 2.5000f;
 constexpr bool CASCADE_SIGN_FLIP_RESET = true;
-constexpr float CASCADE_GRAVITY_FF_MV = 1150.0f;
+constexpr float CASCADE_GRAVITY_FF_MV = 1180.0f;
 
 // ============================================================================
 // [END_TUNED_GAINS]

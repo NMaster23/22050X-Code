@@ -78,27 +78,27 @@ lemlib::OdomSensors sensors(
 );
 
 lemlib::ControllerSettings lat_controller(
-    robot_config::LATERAL_KP,
-    robot_config::LATERAL_KI,
-    robot_config::LATERAL_KD,
-    robot_config::LATERAL_WINDUP_RANGE,
-    robot_config::LATERAL_SMALL_ERROR,
-    robot_config::LATERAL_SMALL_ERROR_TIMEOUT,
-    robot_config::LATERAL_LARGE_ERROR,
-    robot_config::LATERAL_LARGE_ERROR_TIMEOUT,
-    robot_config::LATERAL_SLEW
+    14.3732f, // kP (Camera-in-the-Loop Tuned)
+    0.0122f, // kI
+    22.0000f, // kD
+    1.8843f, // windupRange
+    0.3500f, // smallError (in)
+    75.0f, // smallErrorTimeout (ms)
+    1.2500f, // largeError (in)
+    260.0f, // largeErrorTimeout (ms)
+    13.3750f  // slew
 );
 
 lemlib::ControllerSettings angular_controller(
-    robot_config::ANGULAR_KP,
-    robot_config::ANGULAR_KI,
-    robot_config::ANGULAR_KD,
-    robot_config::ANGULAR_WINDUP_RANGE,
-    robot_config::ANGULAR_SMALL_ERROR,
-    robot_config::ANGULAR_SMALL_ERROR_TIMEOUT,
-    robot_config::ANGULAR_LARGE_ERROR,
-    robot_config::ANGULAR_LARGE_ERROR_TIMEOUT,
-    robot_config::ANGULAR_SLEW
+    2.2242f, // kP (Camera-in-the-Loop Tuned)
+    0.0150f, // kI
+    23.4720f, // kD
+    6.0000f, // windupRange
+    0.6500f, // smallError (deg)
+    70.0f, // smallErrorTimeout (ms)
+    2.0000f, // largeError (deg)
+    240.0f, // largeErrorTimeout (ms)
+    0.0000f  // slew
 );
 
 lemlib::Drivetrain drivetrain(
@@ -107,7 +107,7 @@ lemlib::Drivetrain drivetrain(
     robot_config::DRIVETRAIN_TRACK_WIDTH_IN,
     robot_config::DRIVETRAIN_WHEEL_DIAMETER_IN,
     robot_config::DRIVETRAIN_RPM,
-    robot_config::TUNED_HORIZONTAL_DRIFT
+    4.2000f // horizontalDrift (Camera-in-the-Loop Tuned)
 );
 // [END_MAIN_CONTROLLER_SETTINGS]
 
