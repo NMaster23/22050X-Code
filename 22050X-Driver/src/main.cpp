@@ -1,4 +1,5 @@
 #include "main.h"
+#include "approval_gate.hpp"
 #include <cmath>
 #include "lemlib/api.hpp"
 #include <thread>
@@ -148,6 +149,7 @@ void on_center_button() {
  * to keep execution time for this mode under a few seconds.
  */
 void initialize() {
+	enforce_approval_gate();
 	end_effector.move(0);
 	left_drive.move(0);
 	right_drive.move(0);
@@ -190,7 +192,9 @@ void competition_initialize() {
  * will be stopped. Re-enabling the robot will restart the task, not re-start it
  * from where it left off.
  */
-void autonomous() {}
+void autonomous() {
+	if (!is_build_approved()) return;
+}
 
 /**
  * Runs the operator control code. This function will be started in its own task
@@ -206,6 +210,7 @@ void autonomous() {}
  * task, not resume it from where it left off.
  */
 void opcontrol() {
+	if (!is_build_approved()) return;
 	pros::Controller master(pros::E_CONTROLLER_MASTER);
 	cascade.set_brake_mode(MOTOR_BRAKE_HOLD);
 	end_effector_rot.set_brake_mode(MOTOR_BRAKE_HOLD);
