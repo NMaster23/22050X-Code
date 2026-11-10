@@ -237,9 +237,12 @@ void opcontrol() {
 		int button_left = master.get_digital(DIGITAL_LEFT);
 		int button_right = master.get_digital(DIGITAL_RIGHT);
 		int button_up = master.get_digital(DIGITAL_UP);
-		int button_down = master.get_digital_new_press(DIGITAL_DOWN);
-		if (button_down) {
-			pros::Task cascade_task([] { cascade_control(0); });
+		int button_down = master.get_digital(DIGITAL_DOWN);
+
+		if (button_up) {
+			end_effector_rot.move_velocity(-100);
+		} else if (button_down) {
+			end_effector_rot.move_velocity(100);
 		} else if (!rotating_macro) {
 			end_effector_rot.brake();
 		}
