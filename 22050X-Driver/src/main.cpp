@@ -13,11 +13,12 @@ const int MOTOR_CASCADE_RIGHT_PORT = -2;
 const int MOTOR_INTAKE_PORT = 19;
 
 const int END_EFFECTOR_ROT_PORT = 4;
-const int END_EFFECTOR_ROT_SENSE_PORT = 0;
-const int END_EFFECTOR_PORT = 5;
+const int END_EFFECTOR_ROT_SENSE_PORT = 13;
+const int END_EFFECTOR_PORT = 14;
+
 const int IMU_PORT = 3;
 
-const int ODOM_X_PORT = 0;
+const int ODOM_X_PORT = 3;
 const int ODOM_Y_PORT = 0;
 
 bool rotating_macro = false;
@@ -61,7 +62,7 @@ lemlib::ControllerSettings lat_controller(10,
 										100,
 										3,
 										500,
-										20,
+										20
 );
 
 lemlib::ControllerSettings angular_controller(2,
@@ -72,7 +73,7 @@ lemlib::ControllerSettings angular_controller(2,
 										100,
 										3,
 										500,
-										0,
+										0
 );
 
 lemlib::Drivetrain drivetrain(&left_drive,
@@ -94,13 +95,14 @@ void end_effector_control(float degrees) {
 	bool finished = false;
 	rotating_macro = true;
 	while (!finished) {
-		if (end_effector_rot_sense.get_position() > degrees) {
-			end_effector_rot.move_voltage(-12000);
-		} else if (end_effector_rot_sense.get_position() < degrees) {
-			end_effector_rot.move_voltage(12000);
-		} else {
+		float current = end_effector_rot_sense.get_position();
+		if (std::abs(current - degrees) <= 5.0f) {
 			finished = true;
 			end_effector_rot.brake();
+		} else if (current > degrees) {
+			end_effector_rot.move_voltage(-12000);
+		} else {
+			end_effector_rot.move_voltage(12000);
 		}
 		
 		if (std::abs(end_effector_rot_sense.get_position() - degrees) <= 5) {
@@ -115,11 +117,15 @@ void end_effector_control(float degrees) {
 void cascade_control(float to_pos) {
 	bool finished = false;
 	while (!finished) {
-		cascade.move_voltage(-12000);
-		if (cascade.get_position() <= 3 + to_pos && cascade.get_position() >= -3 + to_pos) {
+		float current = cascade.get_position();
+		if (std::abs(current - to_pos) <= 3.0f) {
 			finished = true;
 			cascade.brake();
-		}
+		} else if (current < to_pos) {
+			cascade.move_voltage(12000);
+		} else {
+			cascade.move_voltage(-12000);
+		};
 		pros::delay(10);
 	}
 }
@@ -230,7 +236,7 @@ void opcontrol() {
 		int button_left = master.get_digital(DIGITAL_LEFT);
 		int button_right = master.get_digital(DIGITAL_RIGHT);
 		int button_up = master.get_digital(DIGITAL_UP);
-		int button_down = master.get_digital(DIGITAL_DOWN);
+		int button_down = master.get_digital_new_press(DIGITAL_DOWN);
 		if (button_down) {
 			pros::Task cascade_task([] { cascade_control(0); });
 		} else if (!rotating_macro) {
