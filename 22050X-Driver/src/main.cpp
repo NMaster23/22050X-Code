@@ -87,7 +87,7 @@ lemlib::Drivetrain drivetrain(&left_drive,
 lemlib::Chassis chassis(drivetrain,
 						lat_controller,
 						angular_controller,
-						sensors,
+						sensors
 );
 
 
