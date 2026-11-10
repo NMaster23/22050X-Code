@@ -1,4 +1,5 @@
 #include "main.h"
+#include "approval_gate.hpp"
 #include <map>
 #include "robot_fsm.hpp"
 #include "field_map.hpp"
@@ -376,6 +377,7 @@ void on_center_button() {
  * to keep execution time for this mode under a few seconds.
  */
 void initialize() {
+	enforce_approval_gate();
 	pros::Controller master(pros::E_CONTROLLER_MASTER);
 	end_effector.move(0);
 	left_drive.move(0);
@@ -421,6 +423,7 @@ void competition_initialize() {
  * from where it left off.
  */
 void autonomous() {
+	if (!is_build_approved()) return;
 	if (sel_auton_mode == AutonMode::Experimental) {
 		ai_vision.enable_detection_types(pros::AivisionModeType::tags, pros::AivisionModeType::objects);
 		cascade.set_brake_mode(MOTOR_BRAKE_HOLD);
@@ -452,6 +455,7 @@ void autonomous() {
  * task, not resume it from where it left off.
  */
 void opcontrol() {
+	if (!is_build_approved()) return;
 	/*while (true) {
 		int dir = master.get_analog(ANALOG_LEFT_Y);
 		int turn = master.get_analog(ANALOG_RIGHT_X);
