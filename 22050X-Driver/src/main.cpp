@@ -13,7 +13,7 @@ const int MOTOR_CASCADE_LEFT_PORT = 1;
 const int MOTOR_CASCADE_RIGHT_PORT = -2;
 const int MOTOR_INTAKE_PORT = 19;
 
-const int END_EFFECTOR_ROT_PORT = 4;
+const int END_EFFECTOR_ROT_PORT = 18;
 const int END_EFFECTOR_ROT_SENSE_PORT = 13;
 const int END_EFFECTOR_PORT = 14;
 
@@ -214,6 +214,10 @@ void opcontrol() {
 	pros::Controller master(pros::E_CONTROLLER_MASTER);
 	cascade.set_brake_mode(MOTOR_BRAKE_HOLD);
 	end_effector_rot.set_brake_mode(MOTOR_BRAKE_HOLD);
+
+	bool reversing_end_effector = false;
+	uint32_t reverse_start_time = 0;
+
 	while (true) {
 		int left_y = master.get_analog(ANALOG_LEFT_Y);
 		int right_x = master.get_analog(ANALOG_RIGHT_X);
@@ -230,27 +234,39 @@ void opcontrol() {
 		int button_r2 = master.get_digital(DIGITAL_R2);
 		if (button_r1) {
 			intake.move_voltage(-12000);
-			end_effector.move_voltage(-12000);
 		} else if (button_r2) {
 			intake.move_voltage(12000);
-			end_effector.move_voltage(12000);
 		} else {
 			intake.move_voltage(0);
-			end_effector.move_voltage(0);
 		}
 		int button_left = master.get_digital(DIGITAL_LEFT);
 		int button_right = master.get_digital(DIGITAL_RIGHT);
 		int button_up = master.get_digital(DIGITAL_UP);
-		int button_down = master.get_digital_new_press(DIGITAL_DOWN);
-		if (button_down) {
-			pros::Task cascade_task([] { cascade_control(0); });
+		int button_down = master.get_digital(DIGITAL_DOWN);
+
+		if (button_up) {
+			end_effector_rot.move_velocity(-100);
+		} else if (button_down) {
+			end_effector_rot.move_velocity(100);
 		} else if (!rotating_macro) {
 			end_effector_rot.brake();
 		}
+
 		int button_b = master.get_digital_new_press(DIGITAL_B);
 		if (button_b) {
-			pros::Task rotate_task([]{ end_effector_control(90); });
+			reversing_end_effector = true;
+			reverse_start_time = pros::millis();
 		}
+
+		if (reversing_end_effector) {
+			if (pros::millis() - reverse_start_time >= 3000) {
+				reversing_end_effector = false;
+			}
+			end_effector.move_voltage(12000);
+		} else {
+			end_effector.move_voltage(-12000);
+		}
+
 		left_drive.move(left_y + right_x);
 		right_drive.move(left_y - right_x);
 		pros::delay(10); 
