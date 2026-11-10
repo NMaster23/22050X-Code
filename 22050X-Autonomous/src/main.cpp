@@ -13,17 +13,11 @@ enum class AllianceColor {
 	None,
 };
 
-enum class AutonMode {
-	HardCoded,
-	Experimental,
-};
-
 struct RobotPos {
 	double x;
 	double y;
 };
 
-AutonMode sel_auton_mode = AutonMode::HardCoded;
 AllianceColor sel_alliance_color = AllianceColor::None;
 
 RobotPos position = {0.0, 0.0};
@@ -51,7 +45,6 @@ const int ODOM_X_PORT = 0;
 const int ODOM_Y_PORT = 0;
 
 const int GPS_PORT = 0;
-const int AI_VISION_PORT = 0;
 const int OPTICAL_SENSOR_PORT = 0;
 
 pros::Motor left_front(MOTOR_LEFT_FRONT_PORT);
@@ -76,7 +69,6 @@ pros::Rotation odom_x(ODOM_X_PORT);
 pros::Rotation odom_y(ODOM_Y_PORT);
 
 pros::Gps gps(GPS_PORT);
-pros::AIVision ai_vision(AI_VISION_PORT);
 pros::Optical optical(OPTICAL_SENSOR_PORT);
 
 lemlib::TrackingWheel horizontal_tracking(&odom_x, lemlib::Omniwheel::NEW_2, -5.75);
@@ -163,46 +155,6 @@ void cascade_control(float to_pos) {
 		if (cascade.get_position() <= 3 + to_pos && cascade.get_position() >= -3 + to_pos) {
 			finished = true;
 			cascade.brake();
-		}
-		pros::delay(10);
-	}
-}
-
-void ai_vision_sensor(void *param) {
-	ai_vision.reset();
-	std::vector<pros::v5::AIVision::Object> items = ai_vision.get_all_objects();
-	while (true) {
-		std::vector<pros::v5::AIVision::Object, std::allocator<pros::v5::AIVision::Object>> objects = ai_vision.get_all_objects();
-		for (const auto& obj: objects) {
-			if (pros::v5::AIVision::is_type(obj, pros::AivisionDetectType::object)) {
-				Target detected_obj = Target {
-					.id = obj.id,
-					.center_x = obj.object.element.xoffset + (obj.object.element.width / 2.0f),
-					.center_y = obj.object.element.yoffset + (obj.object.element.height / 2.0f),
-					.edge_x = obj.object.element.xoffset,
-					.edge_y = obj.object.element.yoffset,
-					.width = obj.object.element.width,
-					.height = obj.object.element.height,
-					.confidence = obj.object.element.score,
-				};
-				addPoint(detected_obj.center_x, detected_obj.center_y, std::to_string(obj.type));
-				addObj(detected_obj);
-			} else if (pros::v5::AIVision::is_type(obj, pros::AivisionDetectType::tag)) {
-				Target detected_obj = Target {
-					.id = obj.id,
-					.center_x = (obj.object.tag.x0 + obj.object.tag.x1 + obj.object.tag.x2 + obj.object.tag.x3) / 4.0f,
-					.center_y = (obj.object.tag.y0 + obj.object.tag.y1 + obj.object.tag.y2 + obj.object.tag.y3) / 4.0f,
-					.edge_x = std::min({obj.object.tag.x0, obj.object.tag.x1, obj.object.tag.x2, obj.object.tag.x3}),
-					.edge_y = std::min({obj.object.tag.y0, obj.object.tag.y1, obj.object.tag.y2, obj.object.tag.y3}),
-					.width = std::max({obj.object.tag.x0, obj.object.tag.x1, obj.object.tag.x2, obj.object.tag.x3}) - std::min({obj.object.tag.x0, obj.object.tag.x1, obj.object.tag.x2, obj.object.tag.x3}),
-					.height = std::max({obj.object.tag.y0, obj.object.tag.y1, obj.object.tag.y2, obj.object.tag.y3}) - std::min({obj.object.tag.y0, obj.object.tag.y1, obj.object.tag.y2, obj.object.tag.y3}),
-					.confidence = 1,
-				};
-				addPoint(detected_obj.center_x, detected_obj.center_y, std::to_string(obj.type));
-				addObj(detected_obj);
-			} else {
-				continue;
-			}
 		}
 		pros::delay(10);
 	}
@@ -341,15 +293,6 @@ void alliance_color(pros::Controller master) {
 	}
 	pros::screen::set_eraser(RGB2COLOR(0, 0, 0));
 	pros::screen::erase();
-	uint32_t c_s_t = pros::millis();
-	while (pros::millis() - c_s_t < 5000) {
-		if (master.get_digital(DIGITAL_L1) && master.get_digital(DIGITAL_L2) && master.get_digital(DIGITAL_R1) && master.get_digital(DIGITAL_R2)) {
-			sel_auton_mode = AutonMode::Experimental;
-			master.rumble("- -");
-			break;
-		}
-		pros::delay(20);
-	}
 	if (sel_alliance_color == AllianceColor::Red) {
 		pros::screen::set_pen(RGB2COLOR(255, 0, 0));
 		pros::screen::print(TEXT_MEDIUM, 3, "Red Alliance Selected");
@@ -424,20 +367,12 @@ void competition_initialize() {
  */
 void autonomous() {
 	if (!is_build_approved()) return;
-	if (sel_auton_mode == AutonMode::Experimental) {
-		ai_vision.enable_detection_types(pros::AivisionModeType::tags, pros::AivisionModeType::objects);
-		cascade.set_brake_mode(MOTOR_BRAKE_HOLD);
-		end_effector_rot.set_brake_mode(MOTOR_BRAKE_HOLD);
-		RobotState current_state = RobotState::Init;
-		pros::Task vision_task(ai_vision_sensor);
-		while (true) {
-			HandleStates(current_state, init, loading, loading_stat, picking, navigation, score, toggle, intake_decide);
-			pros::delay(20);
-		}
-	} else if (sel_auton_mode == AutonMode::HardCoded) {
-
-	} else {
-		pros::screen::print(TEXT_LARGE, 3, "Error");
+	cascade.set_brake_mode(MOTOR_BRAKE_HOLD);
+	end_effector_rot.set_brake_mode(MOTOR_BRAKE_HOLD);
+	RobotState current_state = RobotState::Init;
+	while (true) {
+		HandleStates(current_state, init, loading, loading_stat, picking, navigation, score, toggle, intake_decide);
+		pros::delay(20);
 	}
 }
 
