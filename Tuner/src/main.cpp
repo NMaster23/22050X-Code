@@ -1,7 +1,7 @@
 #include "main.h"
 #include "pid_tuner.hpp"
 
-// Global PID Tuner Instance
+// Global PID Tuner and Drive Controller Instance
 PIDTuner tuner;
 
 /**
@@ -14,7 +14,7 @@ void initialize() {
 
 /**
  * Runs while the robot is in the disabled state of Field Management System or
- * the VEX Competition Switch, following either autonomous or opcontrol.
+ * the VEX Competition Switch.
  */
 void disabled() {}
 
@@ -27,21 +27,47 @@ void competition_initialize() {}
 /**
  * Runs the user autonomous code.
  *
- * This example shows how to use your tuned PID controllers in autonomous:
- * you can execute your tuned step tests or call the PID loops directly.
+ * HOW TO DRIVE THE BOT WITH PID:
+ * You can call tuner.drive_distance() and tuner.turn_to_angle() directly!
+ * These functions use your tuned PID constants and the IMU heading lock.
  */
 void autonomous() {
-    // Example: Run a tuned step test in autonomous
-    tuner.execute_step_test();
+    // -------------------------------------------------------------
+    // EXAMPLE AUTONOMOUS PID DRIVING ROUTINE:
+    // -------------------------------------------------------------
+    
+    // 1. Drive forward 24.0 inches with PID heading lock
+    tuner.drive_distance(24.0, 3500);
+    pros::delay(250);
+
+    // 2. Turn in place 90.0 degrees clockwise with Angular PID
+    tuner.turn_to_angle(90.0, 3000);
+    pros::delay(250);
+
+    // 3. Drive forward another 18.0 inches
+    tuner.drive_distance(18.0, 3000);
+    pros::delay(250);
+
+    // 4. Reverse 12.0 inches backwards
+    tuner.drive_distance(-12.0, 2500);
+    pros::delay(250);
+
+    // 5. Turn back to 0.0 degrees (original field orientation)
+    tuner.turn_to_angle(0.0, 3000);
+
+    // Or run a 4-corner box test routine:
+    // tuner.run_box_test(24.0);
 }
 
 /**
  * Runs the operator control code.
  *
- * In tuning mode, opcontrol runs the interactive PID tuner loop.
- * You can adjust Kp, Ki, Kd and step targets in real time from the V5 Controller,
- * trigger step tests with Button A, view live feedback on the Brain & Controller,
- * and manually reposition the robot with the joysticks when idle!
+ * In tuning & testing mode, opcontrol runs the interactive loop:
+ * - Button A: Runs the active PID step test (drives the target distance or turns to target angle).
+ * - Hold R1 + Button A: Runs a forward 24" -> reverse 24" repeatability test!
+ * - Hold R1 + Button Y: Runs a 4-corner box test!
+ * - Button B: Emergency stops any running motion immediately.
+ * - Joysticks: Manual arcade drive to reposition the bot when idle.
  */
 void opcontrol() {
     tuner.run_interactive_loop();
