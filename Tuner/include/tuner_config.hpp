@@ -7,42 +7,55 @@
 namespace tuner_config {
 
 // ============================================================================
-// 1. HARDWARE PORT CONFIGURATION
-// (Configure motor ports with negative numbers for reversed motors)
+// 1. HARDWARE PORT CONFIGURATION (Imported directly from 22050X-Driver)
 // ============================================================================
 
-// Left drivetrain motor ports
-const std::vector<int8_t> LEFT_DRIVE_PORTS = {1, -2, 3};
+// Drivetrain Motor Ports (negative denotes reversed motor)
+constexpr int8_t MOTOR_LEFT_FRONT_PORT = 20;
+constexpr int8_t MOTOR_LEFT_BACK_PORT = -10;
+constexpr int8_t MOTOR_RIGHT_FRONT_PORT = -7;
+constexpr int8_t MOTOR_RIGHT_BACK_PORT = 9;
 
-// Right drivetrain motor ports
-const std::vector<int8_t> RIGHT_DRIVE_PORTS = {-4, 5, -6};
+const std::vector<int8_t> LEFT_DRIVE_PORTS = {MOTOR_LEFT_FRONT_PORT, MOTOR_LEFT_BACK_PORT};     // {20, -10}
+const std::vector<int8_t> RIGHT_DRIVE_PORTS = {MOTOR_RIGHT_FRONT_PORT, MOTOR_RIGHT_BACK_PORT};  // {-7, 9}
 
-// Single motor or mechanism to tune (e.g., lift, intake, arm, flywheel)
-constexpr int8_t MECHANISM_PORT = 7;
+// Cascade Lift Motor Ports
+constexpr int8_t MOTOR_CASCADE_LEFT_PORT = 1;
+constexpr int8_t MOTOR_CASCADE_RIGHT_PORT = -2;
+const std::vector<int8_t> CASCADE_PORTS = {MOTOR_CASCADE_LEFT_PORT, MOTOR_CASCADE_RIGHT_PORT};   // {1, -2}
 
-// V5 Inertial Sensor / IMU Smart Port (set to 0 if not installed; will fallback to encoders)
-constexpr uint8_t IMU_PORT = 8;
+// Intake & End-Effector Ports
+constexpr int8_t MOTOR_INTAKE_PORT = 19;
+constexpr int8_t END_EFFECTOR_ROT_PORT = 18;
+constexpr int8_t END_EFFECTOR_ROT_SENSE_PORT = 13;
+constexpr int8_t END_EFFECTOR_PORT = 14;
 
-// Motor cartridge gearset for Drivetrain (Blue = 600 RPM, Green = 200 RPM, Red = 100 RPM)
-constexpr pros::v5::MotorGears DRIVETRAIN_GEARSET = pros::v5::MotorGears::blue;
+// Sensors
+constexpr uint8_t IMU_PORT = 3;
+constexpr uint8_t ODOM_X_PORT = 3;
+constexpr uint8_t ODOM_Y_PORT = 0;
 
-// Motor cartridge gearset for Mechanism
-constexpr pros::v5::MotorGears MECHANISM_GEARSET = pros::v5::MotorGears::green;
+// Motor Cartridges
+constexpr pros::v5::MotorGears DRIVETRAIN_GEARSET = pros::v5::MotorGears::blue; // 600 RPM
+constexpr pros::v5::MotorGears CASCADE_GEARSET = pros::v5::MotorGears::blue;    // 600 RPM
+constexpr pros::v5::MotorGears MECHANISM_GEARSET = pros::v5::MotorGears::blue;
+
+// Default mechanism to tune (Cascade lift on port 1)
+constexpr int8_t MECHANISM_PORT = MOTOR_CASCADE_LEFT_PORT;
 
 
 // ============================================================================
-// 2. DRIVETRAIN DIMENSIONS & KINEMATICS
+// 2. DRIVETRAIN DIMENSIONS & KINEMATICS (From 22050X-Driver)
 // ============================================================================
 
-// Wheel diameter in inches (common sizes: 2.75", 3.25", 4.0")
-constexpr double WHEEL_DIAMETER_INCHES = 3.25;
+// Wheel diameter in inches (4.0" Omniwheels: lemlib::Omniwheel::NEW_4)
+constexpr double WHEEL_DIAMETER_INCHES = 4.0;
 
-// Gear ratio (motor teeth / wheel teeth, e.g. 36.0/48.0 = 0.75, or 1.0 for direct drive)
-// Alternatively: (wheel RPM / motor RPM), e.g. 36:60 on a 600 RPM motor = 360/600 = 0.6
+// Gear ratio (motor teeth / wheel teeth; 1.0 for direct drive)
 constexpr double GEAR_RATIO = 1.0;
 
-// Track width in inches (distance between left and right wheel centerlines)
-constexpr double TRACK_WIDTH_INCHES = 12.0;
+// Track width in inches (center-to-center distance between wheel tracks)
+constexpr double TRACK_WIDTH_INCHES = 10.0;
 
 // Math constants
 constexpr double PI = 3.14159265358979323846;
@@ -66,19 +79,19 @@ inline double inches_to_motor_deg(double inches) {
 
 // ============================================================================
 // 3. DEFAULT PID GAINS & SETTLE SETTINGS
-// (These can be tuned live from the V5 Controller and updated here afterwards)
+// (Adjustable live from controller, then persist here)
 // ============================================================================
 
-// --- Profile 1: Linear Drivetrain (Drive forward/backward in inches) ---
+// --- Profile 1: Linear Drivetrain (Drive distance in inches) ---
 inline PIDGains get_default_drive_linear_gains() {
     PIDGains g;
     g.kp = 8.5;             // Proportional gain (voltage output per inch of error)
-    g.ki = 0.0;             // Integral gain (steady-state error elimination)
+    g.ki = 0.0;             // Integral gain
     g.kd = 25.0;            // Derivative gain (damping / overshoot reduction)
     g.windup_range = 3.0;   // Accumulate integral only within 3 inches
     g.sign_flip_reset = true;
-    g.slew_rate = 15.0;     // Max slew rate per 10ms tick (limits wheel slip & jerk)
-    g.min_output = -127.0;  // PROS motor voltage command limit (-127 to +127)
+    g.slew_rate = 15.0;     // Max slew rate per tick (limits wheel slip & jerk)
+    g.min_output = -127.0;  // PROS motor voltage limit (-127 to +127)
     g.max_output = 127.0;
     return g;
 }
@@ -96,7 +109,7 @@ inline SettleSettings get_default_drive_linear_settle() {
 constexpr double DEFAULT_DRIVE_LINEAR_STEP = 24.0; // Default step distance in inches
 
 
-// --- Profile 2: Angular Drivetrain (Turn to heading in degrees) ---
+// --- Profile 2: Angular Drivetrain (Turn heading in degrees) ---
 inline PIDGains get_default_drive_angular_gains() {
     PIDGains g;
     g.kp = 1.8;             // Proportional gain (output per degree of heading error)
@@ -123,7 +136,7 @@ inline SettleSettings get_default_drive_angular_settle() {
 constexpr double DEFAULT_DRIVE_ANGULAR_STEP = 90.0; // Default step angle in degrees
 
 
-// --- Profile 3: Single Motor / Mechanism (e.g. lift/arm in motor degrees) ---
+// --- Profile 3: Single Motor / Mechanism (e.g. Cascade Lift in motor degrees) ---
 inline PIDGains get_default_mechanism_gains() {
     PIDGains g;
     g.kp = 0.45;
