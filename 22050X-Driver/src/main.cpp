@@ -1,6 +1,7 @@
 #include "main.h"
 #include "approval_gate.hpp"
 #include <cmath>
+#include <algorithm>
 #include "lemlib/api.hpp"
 #include <thread>
 #include <chrono>
@@ -11,13 +12,18 @@ const int MOTOR_RIGHT_FRONT_PORT = -7;
 const int MOTOR_RIGHT_BACK_PORT = 9;
 const int MOTOR_CASCADE_LEFT_PORT = 1;
 const int MOTOR_CASCADE_RIGHT_PORT = -2;
+const double CASCADE_MAX_ROTATIONS = 10.0;
+const double MIN_DRIVE_SCALE = 0.25;
+const double END_EFFECTOR_GEAR_RATIO = 3.0;    // 3:1 ratio (sensor rotates 3x per 1x mechanism)
+const double END_EFFECTOR_UP_TARGET = -75.0;    // Physical 90 deg raised position (sensor reads 270)
+const double END_EFFECTOR_DOWN_TARGET = 0.0;   // Physical 0 deg dropped / rest position
 const int MOTOR_INTAKE_PORT = 19;
 
 const int END_EFFECTOR_ROT_PORT = 18;
 const int END_EFFECTOR_ROT_SENSE_PORT = 13;
 const int END_EFFECTOR_PORT = 14;
 
-const int IMU_PORT = 3;
+const int IMU_PORT = 12;
 
 const int ODOM_X_PORT = 3;
 const int ODOM_Y_PORT = 0;
@@ -33,7 +39,7 @@ pros::Motor cascade_left(MOTOR_CASCADE_LEFT_PORT);
 pros::Motor cascade_right(MOTOR_CASCADE_RIGHT_PORT);
 
 pros::Motor end_effector_rot(END_EFFECTOR_ROT_PORT);
-pros::Motor end_effector_rot_sense(END_EFFECTOR_ROT_SENSE_PORT);
+pros::Rotation end_effector_rot_sense(END_EFFECTOR_ROT_SENSE_PORT);
 pros::Motor intake(MOTOR_INTAKE_PORT);
 pros::Motor end_effector(END_EFFECTOR_PORT);
 
@@ -92,26 +98,44 @@ lemlib::Chassis chassis(drivetrain,
 );
 
 
+double get_end_effector_degrees() {
+	int32_t pos = end_effector_rot_sense.get_position();
+	if (pos == PROS_ERR) {
+		return -end_effector_rot.get_position() / END_EFFECTOR_GEAR_RATIO;
+	}
+	// Sensor reports in centidegrees (/ 100.0), scaled by 3:1 gear ratio to get true mechanism degrees
+	return (pos / 100.0) / END_EFFECTOR_GEAR_RATIO;
+}
+
 void end_effector_control(float degrees) {
 	bool finished = false;
 	rotating_macro = true;
-	while (!finished) {
-		float current = end_effector_rot_sense.get_position();
-		if (std::abs(current - degrees) <= 5.0f) {
+	uint32_t start_time = pros::millis();
+	double prev_err = degrees - get_end_effector_degrees();
+	while (!finished && (pros::millis() - start_time < 3000)) {
+		double current = get_end_effector_degrees();
+		double error = degrees - current;
+		double derivative = error - prev_err;
+		prev_err = error;
+
+		if (std::abs(error) <= 1.0) {
 			finished = true;
 			end_effector_rot.brake();
-		} else if (current > degrees) {
-			end_effector_rot.move_voltage(-12000);
 		} else {
-			end_effector_rot.move_voltage(12000);
-		}
-		
-		if (std::abs(end_effector_rot_sense.get_position() - degrees) <= 5) {
-			finished = true;
-			end_effector_rot.brake();
+			double kP = 350.0;
+			double kD = 100.0;
+			// Negative voltage moves UP (-100 velocity), positive voltage moves DOWN (+100 velocity)
+			double voltage = -(error * kP + derivative * kD);
+			if (voltage > 12000.0) voltage = 12000.0;
+			if (voltage < -12000.0) voltage = -12000.0;
+			if (std::abs(voltage) < 2200.0 && std::abs(error) > 1.0) {
+				voltage = (error > 0) ? -2200.0 : 2200.0;
+			}
+			end_effector_rot.move_voltage((int)voltage);
 		}
 		pros::delay(10);
 	}
+	end_effector_rot.brake();
 	rotating_macro = false;
 }
 
@@ -150,14 +174,33 @@ void on_center_button() {
  */
 void initialize() {
 	enforce_approval_gate();
+	pros::lcd::initialize();
+	end_effector.set_brake_mode(MOTOR_BRAKE_HOLD);
 	end_effector.move(0);
 	left_drive.move(0);
 	right_drive.move(0);
+	cascade_left.set_brake_mode(MOTOR_BRAKE_HOLD);
+	cascade_right.set_brake_mode(MOTOR_BRAKE_HOLD);
 	cascade.set_brake_mode(MOTOR_BRAKE_HOLD);
-	cascade.move(0);
+	cascade.set_encoder_units(pros::MotorUnits::rotations);
+	cascade.tare_position();
+	cascade.brake();
 	end_effector_rot.set_brake_mode(MOTOR_BRAKE_HOLD);
+	end_effector_rot.tare_position();
+	end_effector_rot_sense.reset_position();
 	end_effector_rot.move(0);
 	intake.move_voltage(0);
+
+	pros::Task telemetry_task([]() {
+		while (true) {
+			double arm_angle = get_end_effector_degrees();
+			double sensor_raw = end_effector_rot_sense.get_position() / 100.0;
+			pros::lcd::print(3, "Arm:  %5.1f deg", arm_angle);
+			pros::lcd::print(4, "Sens: %5.1f deg (3:1)", sensor_raw);
+			pros::delay(50);
+		}
+	});
+
 	pros::delay(200);
 }
 
@@ -212,23 +255,57 @@ void autonomous() {
 void opcontrol() {
 	if (!is_build_approved()) return;
 	pros::Controller master(pros::E_CONTROLLER_MASTER);
+	cascade_left.set_brake_mode(MOTOR_BRAKE_HOLD);
+	cascade_right.set_brake_mode(MOTOR_BRAKE_HOLD);
 	cascade.set_brake_mode(MOTOR_BRAKE_HOLD);
+	cascade.set_encoder_units(pros::MotorUnits::rotations);
 	end_effector_rot.set_brake_mode(MOTOR_BRAKE_HOLD);
+	end_effector.set_brake_mode(MOTOR_BRAKE_HOLD);
 
 	bool reversing_end_effector = false;
 	uint32_t reverse_start_time = 0;
+
+	bool cascade_down_macro = false;
+	uint32_t cascade_macro_start_time = 0;
+
+	bool end_effector_toggle_up = false;
+	bool end_effector_macro_active = false;
+	double end_effector_target = END_EFFECTOR_DOWN_TARGET;
+	double prev_arm_error = 0.0;
 
 	while (true) {
 		int left_y = master.get_analog(ANALOG_LEFT_Y);
 		int right_x = master.get_analog(ANALOG_RIGHT_X);
 		int button_l1 = master.get_digital(DIGITAL_L1);
-		int button_l2 = master.get_digital(DIGITAL_L2);
+		int button_l2 = master.get_digital_new_press(DIGITAL_L2);
+
+		if (button_l2) {
+			if (cascade_down_macro) {
+				cascade_down_macro = false;
+				cascade.brake();
+			} else if (cascade.get_position() > 0.1) {
+				cascade_down_macro = true;
+				cascade_macro_start_time = pros::millis();
+			}
+		}
+
 		if (button_l1) {
+			cascade_down_macro = false;
 			cascade.move_velocity(600);
-		} else if (button_l2) {
-			cascade.move_velocity(-600);
+		} else if (cascade_down_macro) {
+			double cascade_pos = cascade.get_position();
+			bool timed_out = (pros::millis() - cascade_macro_start_time > 5000);
+			if (cascade_pos <= 0.05 || timed_out) {
+				cascade_down_macro = false;
+				cascade.move_velocity(0);
+				cascade.brake();
+			} else if (cascade_pos <= 1.0) {
+				cascade.move_velocity(-300);
+			} else {
+				cascade.move_velocity(-600);
+			}
 		} else {
-			cascade.move_velocity(0);
+			cascade.brake();
 		}
 		int button_r1 = master.get_digital(DIGITAL_R1);
 		int button_r2 = master.get_digital(DIGITAL_R2);
@@ -240,15 +317,44 @@ void opcontrol() {
 			intake.move_voltage(0);
 		}
 		int button_left = master.get_digital(DIGITAL_LEFT);
-		int button_right = master.get_digital(DIGITAL_RIGHT);
+		int button_right = master.get_digital_new_press(DIGITAL_RIGHT);
 		int button_up = master.get_digital(DIGITAL_UP);
 		int button_down = master.get_digital(DIGITAL_DOWN);
 
+		if (button_right) {
+			end_effector_toggle_up = !end_effector_toggle_up;
+			end_effector_macro_active = true;
+			end_effector_target = end_effector_toggle_up ? END_EFFECTOR_UP_TARGET : END_EFFECTOR_DOWN_TARGET;
+			prev_arm_error = end_effector_target - get_end_effector_degrees();
+		}
+
 		if (button_up) {
+			end_effector_macro_active = false;
 			end_effector_rot.move_velocity(-100);
 		} else if (button_down) {
+			end_effector_macro_active = false;
 			end_effector_rot.move_velocity(100);
-		} else if (!rotating_macro) {
+		} else if (end_effector_macro_active) {
+			double current = get_end_effector_degrees();
+			double error = end_effector_target - current;
+			double derivative = error - prev_arm_error;
+			prev_arm_error = error;
+
+			if (std::abs(error) <= 1.0) {
+				end_effector_rot.brake();
+			} else {
+				double kP = 350.0;
+				double kD = 100.0;
+				// Inverted: negative voltage moves UP (-100 velocity), positive voltage moves DOWN (+100 velocity)
+				double voltage = -(error * kP + derivative * kD);
+				if (voltage > 12000.0) voltage = 12000.0;
+				if (voltage < -12000.0) voltage = -12000.0;
+				if (std::abs(voltage) < 2200.0 && std::abs(error) > 1.0) {
+					voltage = (error > 0) ? -2200.0 : 2200.0;
+				}
+				end_effector_rot.move_voltage((int)voltage);
+			}
+		} else {
 			end_effector_rot.brake();
 		}
 
@@ -267,8 +373,17 @@ void opcontrol() {
 			end_effector.move_voltage(-12000);
 		}
 
-		left_drive.move(left_y + right_x);
-		right_drive.move(left_y - right_x);
+		double cascade_rotations = std::max(0.0, cascade.get_position());
+		double drive_scale = 1.0;
+		double half_rotations = CASCADE_MAX_ROTATIONS * 0.5;
+		if (cascade_rotations > half_rotations) {
+			double fraction_above_half = (cascade_rotations - half_rotations) / (CASCADE_MAX_ROTATIONS - half_rotations);
+			if (fraction_above_half > 1.0) fraction_above_half = 1.0;
+			drive_scale = 1.0 - fraction_above_half * (1.0 - MIN_DRIVE_SCALE);
+		}
+
+		left_drive.move(std::round((left_y + right_x) * drive_scale));
+		right_drive.move(std::round((left_y - right_x) * drive_scale));
 		pros::delay(10); 
 	}
 }
