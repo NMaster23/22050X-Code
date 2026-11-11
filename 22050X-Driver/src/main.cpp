@@ -14,8 +14,14 @@ const int MOTOR_CASCADE_LEFT_PORT = 1;
 const int MOTOR_CASCADE_RIGHT_PORT = -2;
 const double CASCADE_MAX_ROTATIONS = 10.0;
 const double MIN_DRIVE_SCALE = 0.25;
+
+// VEX Override Pin/Cup: 6.5 in height. 1.25x = 8.125 inches (~3.0 motor rotations)
+const double OVERRIDE_PIN_CUP_HEIGHT_INCHES = 6.5;
+const double CASCADE_INCHES_PER_ROTATION = 2.7;
+const double CASCADE_UP_TARGET_ROTATIONS = (1.25 * OVERRIDE_PIN_CUP_HEIGHT_INCHES) / CASCADE_INCHES_PER_ROTATION; // ~3.0 rotations
+
 const double END_EFFECTOR_GEAR_RATIO = 3.0;    // 3:1 ratio (sensor rotates 3x per 1x mechanism)
-const double END_EFFECTOR_UP_TARGET = -75.0;    // Physical 90 deg raised position (sensor reads 270)
+const double END_EFFECTOR_UP_TARGET = 75.0;     // Target raised position in degrees (adjust as desired: e.g. 70, 75, 90)
 const double END_EFFECTOR_DOWN_TARGET = 0.0;   // Physical 0 deg dropped / rest position
 const int MOTOR_INTAKE_PORT = 19;
 
@@ -103,8 +109,8 @@ double get_end_effector_degrees() {
 	if (pos == PROS_ERR) {
 		return -end_effector_rot.get_position() / END_EFFECTOR_GEAR_RATIO;
 	}
-	// Sensor reports in centidegrees (/ 100.0), scaled by 3:1 gear ratio to get true mechanism degrees
-	return (pos / 100.0) / END_EFFECTOR_GEAR_RATIO;
+	// Sensor rotates negatively when arm moves up; invert so UP is positive degrees
+	return (-pos / 100.0) / END_EFFECTOR_GEAR_RATIO;
 }
 
 void end_effector_control(float degrees) {
@@ -122,14 +128,14 @@ void end_effector_control(float degrees) {
 			finished = true;
 			end_effector_rot.brake();
 		} else {
-			double kP = 350.0;
-			double kD = 100.0;
+			double kP = 200.0;
+			double kD = 50.0;
 			// Negative voltage moves UP (-100 velocity), positive voltage moves DOWN (+100 velocity)
 			double voltage = -(error * kP + derivative * kD);
-			if (voltage > 12000.0) voltage = 12000.0;
-			if (voltage < -12000.0) voltage = -12000.0;
-			if (std::abs(voltage) < 2200.0 && std::abs(error) > 1.0) {
-				voltage = (error > 0) ? -2200.0 : 2200.0;
+			if (voltage > 9500.0) voltage = 9500.0;
+			if (voltage < -9500.0) voltage = -9500.0;
+			if (std::abs(voltage) < 2000.0 && std::abs(error) > 1.0) {
+				voltage = (error > 0) ? -2000.0 : 2000.0;
 			}
 			end_effector_rot.move_voltage((int)voltage);
 		}
@@ -194,9 +200,10 @@ void initialize() {
 	pros::Task telemetry_task([]() {
 		while (true) {
 			double arm_angle = get_end_effector_degrees();
-			double sensor_raw = end_effector_rot_sense.get_position() / 100.0;
+			double sensor_pos = -(end_effector_rot_sense.get_position() / 100.0);
 			pros::lcd::print(3, "Arm:  %5.1f deg", arm_angle);
-			pros::lcd::print(4, "Sens: %5.1f deg (3:1)", sensor_raw);
+			pros::lcd::print(4, "Sens: %5.1f deg (3:1)", sensor_pos);
+			pros::lcd::print(5, "Casc: %5.2f rot", cascade.get_position());
 			pros::delay(50);
 		}
 	});
@@ -267,6 +274,8 @@ void opcontrol() {
 
 	bool cascade_down_macro = false;
 	uint32_t cascade_macro_start_time = 0;
+	bool cascade_macro_active = false;
+	double cascade_target_pos = 0.0;
 
 	bool end_effector_toggle_up = false;
 	bool end_effector_macro_active = false;
@@ -280,6 +289,7 @@ void opcontrol() {
 		int button_l2 = master.get_digital_new_press(DIGITAL_L2);
 
 		if (button_l2) {
+			cascade_macro_active = false;
 			if (cascade_down_macro) {
 				cascade_down_macro = false;
 				cascade.brake();
@@ -291,6 +301,7 @@ void opcontrol() {
 
 		if (button_l1) {
 			cascade_down_macro = false;
+			cascade_macro_active = false;
 			cascade.move_velocity(600);
 		} else if (cascade_down_macro) {
 			double cascade_pos = cascade.get_position();
@@ -303,6 +314,26 @@ void opcontrol() {
 				cascade.move_velocity(-300);
 			} else {
 				cascade.move_velocity(-600);
+			}
+		} else if (cascade_macro_active) {
+			double cascade_pos = cascade.get_position();
+			double cascade_error = cascade_target_pos - cascade_pos;
+			if (std::abs(cascade_error) <= 0.08) {
+				cascade_macro_active = false;
+				cascade.move_velocity(0);
+				cascade.brake();
+			} else if (cascade_error > 0) {
+				if (cascade_error <= 0.5) {
+					cascade.move_velocity(300);
+				} else {
+					cascade.move_velocity(600);
+				}
+			} else {
+				if (cascade_pos <= 1.0) {
+					cascade.move_velocity(-300);
+				} else {
+					cascade.move_velocity(-600);
+				}
 			}
 		} else {
 			cascade.brake();
@@ -326,6 +357,10 @@ void opcontrol() {
 			end_effector_macro_active = true;
 			end_effector_target = end_effector_toggle_up ? END_EFFECTOR_UP_TARGET : END_EFFECTOR_DOWN_TARGET;
 			prev_arm_error = end_effector_target - get_end_effector_degrees();
+
+			cascade_down_macro = false;
+			cascade_macro_active = true;
+			cascade_target_pos = end_effector_toggle_up ? CASCADE_UP_TARGET_ROTATIONS : 0.0;
 		}
 
 		if (button_up) {
@@ -343,14 +378,14 @@ void opcontrol() {
 			if (std::abs(error) <= 1.0) {
 				end_effector_rot.brake();
 			} else {
-				double kP = 350.0;
-				double kD = 100.0;
+				double kP = 200.0;
+				double kD = 50.0;
 				// Inverted: negative voltage moves UP (-100 velocity), positive voltage moves DOWN (+100 velocity)
 				double voltage = -(error * kP + derivative * kD);
-				if (voltage > 12000.0) voltage = 12000.0;
-				if (voltage < -12000.0) voltage = -12000.0;
-				if (std::abs(voltage) < 2200.0 && std::abs(error) > 1.0) {
-					voltage = (error > 0) ? -2200.0 : 2200.0;
+				if (voltage > 9500.0) voltage = 9500.0;
+				if (voltage < -9500.0) voltage = -9500.0;
+				if (std::abs(voltage) < 2000.0 && std::abs(error) > 1.0) {
+					voltage = (error > 0) ? -2000.0 : 2000.0;
 				}
 				end_effector_rot.move_voltage((int)voltage);
 			}
