@@ -272,8 +272,6 @@ void opcontrol() {
 	bool reversing_end_effector = false;
 	uint32_t reverse_start_time = 0;
 
-	bool cascade_down_macro = false;
-	uint32_t cascade_macro_start_time = 0;
 	bool cascade_macro_active = false;
 	double cascade_target_pos = 0.0;
 
@@ -286,35 +284,14 @@ void opcontrol() {
 		int left_y = master.get_analog(ANALOG_LEFT_Y);
 		int right_x = master.get_analog(ANALOG_RIGHT_X);
 		int button_l1 = master.get_digital(DIGITAL_L1);
-		int button_l2 = master.get_digital_new_press(DIGITAL_L2);
-
-		if (button_l2) {
-			cascade_macro_active = false;
-			if (cascade_down_macro) {
-				cascade_down_macro = false;
-				cascade.brake();
-			} else if (cascade.get_position() > 0.1) {
-				cascade_down_macro = true;
-				cascade_macro_start_time = pros::millis();
-			}
-		}
+		int button_l2 = master.get_digital(DIGITAL_L2);
 
 		if (button_l1) {
-			cascade_down_macro = false;
 			cascade_macro_active = false;
 			cascade.move_velocity(600);
-		} else if (cascade_down_macro) {
-			double cascade_pos = cascade.get_position();
-			bool timed_out = (pros::millis() - cascade_macro_start_time > 5000);
-			if (cascade_pos <= 0.05 || timed_out) {
-				cascade_down_macro = false;
-				cascade.move_velocity(0);
-				cascade.brake();
-			} else if (cascade_pos <= 1.0) {
-				cascade.move_velocity(-300);
-			} else {
-				cascade.move_velocity(-600);
-			}
+		} else if (button_l2) {
+			cascade_macro_active = false;
+			cascade.move_velocity(-600);
 		} else if (cascade_macro_active) {
 			double cascade_pos = cascade.get_position();
 			double cascade_error = cascade_target_pos - cascade_pos;
@@ -358,7 +335,6 @@ void opcontrol() {
 			end_effector_target = end_effector_toggle_up ? END_EFFECTOR_UP_TARGET : END_EFFECTOR_DOWN_TARGET;
 			prev_arm_error = end_effector_target - get_end_effector_degrees();
 
-			cascade_down_macro = false;
 			cascade_macro_active = true;
 			cascade_target_pos = end_effector_toggle_up ? CASCADE_UP_TARGET_ROTATIONS : 0.0;
 		}
