@@ -31,7 +31,7 @@ const int END_EFFECTOR_PORT = 14;
 const int IMU_PORT = 12;
 
 const int ODOM_X_PORT = 3;
-const int ODOM_Y_PORT = 5;
+const int ODOM_Y_PORT = 6;
 
 bool rotating_macro = false;
 
@@ -129,7 +129,7 @@ void on_center_button() {
 void initialize() {
 	pros::lcd::initialize();
 	pros::lcd::set_text(1, "Hello PROS User!");
-
+    chassis.calibrate();
 	pros::lcd::register_btn1_cb(on_center_button);
 }
 
@@ -181,9 +181,9 @@ void opcontrol() {
 	odom_x.set_position(0);
 	odom_y.set_position(0);
 	while (true) {
-		float odom_x_in_pos = odom_x.get_position() / 36000.0;
-		float odom_y_in_pos = odom_y.get_position() / 36000.0;
-		std::string pos = std::format("X: {} Y: {}", odom_x_in_pos, odom_y_in_pos);
+		float odom_x_in_pos = (odom_x.get_position() / 36000.0f) * M_PI * lemlib::Omniwheel::NEW_2;
+		float odom_y_in_pos = (odom_y.get_position() / 36000.0f) * M_PI * lemlib::Omniwheel::NEW_2;
+		std::string pos = std::format("X: {} Y: {} Rot: {}", odom_x_in_pos, odom_y_in_pos, imu.get_heading());
 		pros::lcd::set_text(1, pos);
 		pros::delay(20);
 	}
