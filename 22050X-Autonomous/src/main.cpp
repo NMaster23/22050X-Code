@@ -33,6 +33,8 @@ const int ODOM_Y_PORT = 17;
 
 bool rotating_macro = false;
 
+pros::Controller controller(pros::E_CONTROLLER_MASTER);
+
 pros::Motor left_front(MOTOR_LEFT_FRONT_PORT);
 pros::Motor left_back(MOTOR_LEFT_BACK_PORT);
 pros::Motor right_front(MOTOR_RIGHT_FRONT_PORT);
@@ -65,7 +67,7 @@ lemlib::OdomSensors sensors(
 	&imu
 );
 
-lemlib::ControllerSettings lateral_controller(15, // proportional gain (kP)
+lemlib::ControllerSettings lateral_controller(14, // proportional gain (kP)
                                               0, // integral gain (kI)
                                               6, // derivative gain (kD)
                                               0, // anti windup
@@ -78,7 +80,7 @@ lemlib::ControllerSettings lateral_controller(15, // proportional gain (kP)
 
 lemlib::ControllerSettings angular_controller(2, // proportional gain (kP)
                                               0, // integral gain (kI)
-                                              10, // derivative gain (kD)
+                                              15, // derivative gain (kD)
                                               0, // anti windup
                                               0, // small error range, in inches
                                               0, // small error range timeout, in milliseconds
@@ -177,7 +179,7 @@ void autonomous() {}
  */
 void opcontrol() {
 	chassis.setPose(0, 0, 0);
-	chassis.moveToPose(0, -51, 0, 4000, {.forwards = false});
+	chassis.turnToHeading(90, 4000);
 	chassis.waitUntilDone();
 }
 // x1: 
