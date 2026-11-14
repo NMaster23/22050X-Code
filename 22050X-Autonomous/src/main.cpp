@@ -179,12 +179,14 @@ void autonomous() {}
  */
 void opcontrol() {
 	chassis.setPose(0, 0, 0);
-	chassis.moveToPoint(0, -24, 500, {.forwards = false});
-	chassis.moveToPoint(0, 2, 500);
-	chassis.moveToPoint(0, -24, 500, {.forwards = false});
-	chassis.moveToPoint(0, 2, 500);
+/*	chassis.moveToPoint(0, -24, 750, {.forwards = false});
+	chassis.moveToPoint(0, 2, 1500);
+	chassis.moveToPoint(0, -24, 750, {.forwards = false});
+	chassis.moveToPoint(0, 2, 1500);*/
+	chassis.turnToHeading(61, 250);
+	chassis.moveToPoint(-10, -18.37, 4000, {.forwards = false});
 	chassis.waitUntilDone();
 }
-// x1: 
-// y1: 
-// r1: 
+// x1: -3.517
+// y1: -18.37
+// r1: 57.26
