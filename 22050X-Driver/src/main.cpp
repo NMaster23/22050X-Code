@@ -275,6 +275,9 @@ void opcontrol() {
 	bool cascade_macro_active = false;
 	double cascade_target_pos = 0.0;
 
+	bool reset_macro_active = false;
+	uint32_t reset_macro_start_time = 0;
+
 	bool end_effector_toggle_up = false;
 	bool end_effector_macro_active = false;
 	double end_effector_target = END_EFFECTOR_DOWN_TARGET;
@@ -285,6 +288,32 @@ void opcontrol() {
 		int right_x = master.get_analog(ANALOG_RIGHT_X);
 		int button_l1 = master.get_digital(DIGITAL_L1);
 		int button_l2 = master.get_digital(DIGITAL_L2);
+		int button_x = master.get_digital_new_press(DIGITAL_X);
+
+		if (button_x) {
+			reset_macro_active = true;
+			reset_macro_start_time = pros::millis();
+			cascade_macro_active = true;
+			cascade_target_pos = 0.0;
+			end_effector_toggle_up = false;
+			end_effector_macro_active = true;
+			end_effector_target = END_EFFECTOR_DOWN_TARGET;
+			prev_arm_error = end_effector_target - get_end_effector_degrees();
+		}
+
+		if (reset_macro_active) {
+			bool cascade_at_start = std::abs(cascade.get_position()) <= 0.08;
+			bool arm_at_start = std::abs(get_end_effector_degrees() - END_EFFECTOR_DOWN_TARGET) <= 1.0;
+			if (pros::millis() - reset_macro_start_time >= 5000) {
+				reset_macro_active = false;
+				cascade_macro_active = false;
+				end_effector_macro_active = false;
+				cascade.brake();
+				end_effector_rot.brake();
+			} else if (cascade_at_start && arm_at_start) {
+				reset_macro_active = false;
+			}
+		}
 
 		if (button_l1) {
 			cascade_macro_active = false;
