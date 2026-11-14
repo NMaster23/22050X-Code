@@ -46,7 +46,7 @@ pros::Motor cascade_right(MOTOR_CASCADE_RIGHT_PORT);
 pros::Motor end_effector_rot(END_EFFECTOR_ROT_PORT);
 pros::Rotation end_effector_rot_sense(END_EFFECTOR_ROT_SENSE_PORT);
 pros::Motor intake(MOTOR_INTAKE_PORT);
-pros::Motor end_effector(END_EFFECTOR_PORT);
+pros::Motor end_effector(-END_EFFECTOR_PORT);
 
 pros::MotorGroup left_drive({MOTOR_LEFT_FRONT_PORT, MOTOR_LEFT_BACK_PORT});
 pros::MotorGroup right_drive({MOTOR_RIGHT_FRONT_PORT, MOTOR_RIGHT_BACK_PORT});
@@ -103,6 +103,47 @@ lemlib::Chassis chassis(drivetrain,
 						sensors
 );
 
+double get_end_effector_degrees() {
+	int32_t pos = end_effector_rot_sense.get_position();
+	if (pos == PROS_ERR) {
+		return -end_effector_rot.get_position() / END_EFFECTOR_GEAR_RATIO;
+	}
+	// Sensor rotates negatively when arm moves up; invert so UP is positive degrees
+	return (-pos / 100.0) / END_EFFECTOR_GEAR_RATIO;
+}
+
+void end_effector_control(float degrees) {
+	bool finished = false;
+	rotating_macro = true;
+	uint32_t start_time = pros::millis();
+	double prev_err = degrees - get_end_effector_degrees();
+	while (!finished && (pros::millis() - start_time < 3000)) {
+		double current = get_end_effector_degrees();
+		double error = degrees - current;
+		double derivative = error - prev_err;
+		prev_err = error;
+
+		if (std::abs(error) <= 1.0) {
+			finished = true;
+			end_effector_rot.brake();
+		} else {
+			double kP = 200.0;
+			double kD = 50.0;
+			// Negative voltage moves UP (-100 velocity), positive voltage moves DOWN (+100 velocity)
+			double voltage = -(error * kP + derivative * kD);
+			if (voltage > 9500.0) voltage = 9500.0;
+			if (voltage < -9500.0) voltage = -9500.0;
+			if (std::abs(voltage) < 2000.0 && std::abs(error) > 1.0) {
+				voltage = (error > 0) ? -2000.0 : 2000.0;
+			}
+			end_effector_rot.move_voltage((int)voltage);
+		}
+		pros::delay(10);
+	}
+	end_effector_rot.brake();
+	rotating_macro = false;
+}
+
 
 /**
  * A callback function for LLEMU's center button.
@@ -129,6 +170,9 @@ void on_center_button() {
 void initialize() {
 	pros::lcd::initialize();
 	pros::lcd::set_text(1, "Hello PROS User!");
+    odom_x.set_position(0);
+    odom_y.set_position(0);
+    end_effector_rot_sense.set_position(0);
 	chassis.calibrate();
 	pros::lcd::register_btn1_cb(on_center_button);
 }
@@ -178,15 +222,27 @@ void autonomous() {}
  * task, not resume it from where it left off.
  */
 void opcontrol() {
+    end_effector_rot.set_brake_mode(MOTOR_BRAKE_HOLD);
+    end_effector.move_velocity(600);
 	chassis.setPose(0, 0, 0);
-/*	chassis.moveToPoint(0, -24, 750, {.forwards = false});
-	chassis.moveToPoint(0, 2, 1500);
-	chassis.moveToPoint(0, -24, 750, {.forwards = false});
-	chassis.moveToPoint(0, 2, 1500);*/
-	chassis.turnToHeading(61, 250);
-	chassis.moveToPoint(-10, -18.37, 4000, {.forwards = false});
+	chassis.moveToPoint(0, -12, 750, {.forwards = false, .maxSpeed = 105});
+	chassis.moveToPoint(0, 2, 750, {.minSpeed = 127});
+	chassis.moveToPoint(0, -12, 750, {.forwards = false, .maxSpeed = 105});
+    pros::Task([]() {
+        end_effector_control(50);
+    });
+    end_effector_rot.brake();
+	chassis.moveToPoint(0, 2, 750, {.minSpeed = 127});
+	chassis.turnToHeading(65, 300);
+	chassis.moveToPoint(-31.6, -25, 900, {.forwards = false});
 	chassis.waitUntilDone();
+    end_effector.move_velocity(-600);
+    pros::delay(500);
+    pros::Task([]() {
+        end_effector_control(90);
+    });
+    chassis.moveToPose(0, -15, 90, 1000);
 }
-// x1: -3.517
-// y1: -18.37
-// r1: 57.26
+// x1: 0.0
+// y1: -15
+// r1: 90
