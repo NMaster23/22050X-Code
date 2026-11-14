@@ -31,7 +31,7 @@ const int END_EFFECTOR_PORT = 14;
 const int IMU_PORT = 12;
 
 const int ODOM_X_PORT = 3;
-const int ODOM_Y_PORT = 6;
+const int ODOM_Y_PORT = 17;
 
 bool rotating_macro = false;
 

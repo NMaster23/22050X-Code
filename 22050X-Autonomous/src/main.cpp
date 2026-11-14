@@ -179,7 +179,10 @@ void autonomous() {}
  */
 void opcontrol() {
 	chassis.setPose(0, 0, 0);
-	chassis.turnToHeading(90, 4000);
+	chassis.moveToPoint(0, -24, 500, {.forwards = false});
+	chassis.moveToPoint(0, 2, 500);
+	chassis.moveToPoint(0, -24, 500, {.forwards = false});
+	chassis.moveToPoint(0, 2, 500);
 	chassis.waitUntilDone();
 }
 // x1: 
