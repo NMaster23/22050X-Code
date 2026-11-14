@@ -32,7 +32,7 @@ const int END_EFFECTOR_PORT = 14;
 const int IMU_PORT = 12;
 
 const int ODOM_X_PORT = 3;
-const int ODOM_Y_PORT = 0;
+const int ODOM_Y_PORT = 17;
 
 bool rotating_macro = false;
 
@@ -57,8 +57,8 @@ pros::Imu imu(IMU_PORT);
 pros::Rotation odom_x(ODOM_X_PORT);
 pros::Rotation odom_y(ODOM_Y_PORT);
 
-lemlib::TrackingWheel horizontal_tracking(&odom_x, lemlib::Omniwheel::NEW_2, -5.75);
-lemlib::TrackingWheel vertical_tracking(&odom_y, lemlib::Omniwheel::NEW_2, -2.5);
+lemlib::TrackingWheel horizontal_tracking(&odom_x, lemlib::Omniwheel::NEW_2, 0);
+lemlib::TrackingWheel vertical_tracking(&odom_y, lemlib::Omniwheel::NEW_2, 0);
 
 lemlib::OdomSensors sensors(&vertical_tracking,
 	nullptr,
@@ -181,6 +181,7 @@ void on_center_button() {
 void initialize() {
 	enforce_approval_gate();
 	pros::lcd::initialize();
+	chassis.calibrate();
 	end_effector.set_brake_mode(MOTOR_BRAKE_HOLD);
 	end_effector.move(0);
 	left_drive.move(0);
@@ -196,18 +197,10 @@ void initialize() {
 	end_effector_rot_sense.reset_position();
 	end_effector_rot.move(0);
 	intake.move_voltage(0);
-
-	pros::Task telemetry_task([]() {
-		while (true) {
-			double arm_angle = get_end_effector_degrees();
-			double sensor_pos = -(end_effector_rot_sense.get_position() / 100.0);
-			pros::lcd::print(3, "Arm:  %5.1f deg", arm_angle);
-			pros::lcd::print(4, "Sens: %5.1f deg (3:1)", sensor_pos);
-			pros::lcd::print(5, "Casc: %5.2f rot", cascade.get_position());
-			pros::delay(50);
-		}
-	});
-
+    odom_x.set_position(0);
+    odom_y.set_position(0);
+    end_effector_rot_sense.set_position(0);
+	chassis.calibrate();
 	pros::delay(200);
 }
 
@@ -244,6 +237,28 @@ void competition_initialize() {
  */
 void autonomous() {
 	if (!is_build_approved()) return;
+    end_effector_rot.set_brake_mode(MOTOR_BRAKE_HOLD);
+    end_effector.move_velocity(600);
+	chassis.setPose(0, 0, 0);
+	chassis.moveToPoint(0, -12, 750, {.forwards = false, .maxSpeed = 105});
+	chassis.moveToPoint(0, 2, 750, {.minSpeed = 127});
+	chassis.moveToPoint(0, -12, 750, {.forwards = false, .maxSpeed = 105});
+    pros::Task([]() {
+        end_effector_control(50);
+    });
+    end_effector_rot.brake();
+	chassis.moveToPoint(0, 2, 750, {.minSpeed = 127});
+	chassis.turnToHeading(85, 450);
+	chassis.moveToPoint(-31.6, -25, 900, {.forwards = false});
+	chassis.waitUntilDone();
+    end_effector.move_velocity(-600);
+    pros::delay(500);
+    pros::Task([]() {
+        end_effector_control(90);
+    });
+    chassis.moveToPose(0, -15, 90, 1000);
+	chassis.waitUntilDone();
+	chassis.turnToHeading(60, 500);
 }
 
 /**
@@ -288,9 +303,14 @@ void opcontrol() {
 		int right_x = master.get_analog(ANALOG_RIGHT_X);
 		int button_l1 = master.get_digital(DIGITAL_L1);
 		int button_l2 = master.get_digital(DIGITAL_L2);
+		int button_y = master.get_digital_new_press(DIGITAL_Y);
 		int button_x = master.get_digital_new_press(DIGITAL_X);
-
 		if (button_x) {
+			pros::Task([]() {
+				end_effector_control(50);
+			});
+		}
+		if (button_y) {
 			reset_macro_active = true;
 			reset_macro_start_time = pros::millis();
 			cascade_macro_active = true;

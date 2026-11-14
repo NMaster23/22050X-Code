@@ -635,7 +635,7 @@
       }
     },
     "upload_options": {
-      "after": "run",
+      "after": "screen",
       "slot": 3
     },
     "use_early_access": false

@@ -233,7 +233,7 @@ void opcontrol() {
     });
     end_effector_rot.brake();
 	chassis.moveToPoint(0, 2, 750, {.minSpeed = 127});
-	chassis.turnToHeading(65, 300);
+	chassis.turnToHeading(85, 450);
 	chassis.moveToPoint(-31.6, -25, 900, {.forwards = false});
 	chassis.waitUntilDone();
     end_effector.move_velocity(-600);
@@ -242,6 +242,8 @@ void opcontrol() {
         end_effector_control(90);
     });
     chassis.moveToPose(0, -15, 90, 1000);
+	chassis.waitUntilDone();
+	chassis.turnToHeading(60, 500);
 }
 // x1: 0.0
 // y1: -15
